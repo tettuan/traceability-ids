@@ -68,13 +68,13 @@ req:projA:auth-timeout-3kd92z#20250903a
 ## Installation
 
 ```bash
-deno install --allow-read --allow-write jsr:@aidevtool/traceability-ids/cli
+deno install --allow-read --allow-write jsr:@aidevtool/traceability-ids
 ```
 
 Or run directly without installation:
 
 ```bash
-deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/cli <input-dir> <output-file> [options]
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids <input-dir> <output-file> [options]
 ```
 
 ## Usage
@@ -83,7 +83,7 @@ deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/cli <input-d
 
 ```bash
 # Output simple ID list (default)
-deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/cli ./data ./output/ids.txt
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data ./output/ids.txt
 
 # Example output:
 # req:apikey:hierarchy-9a2f4d#20251111a
@@ -98,7 +98,7 @@ deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/cli ./data .
 
 ```bash
 # IDs grouped by cluster
-deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/cli ./data ./output/ids.txt \
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data ./output/ids.txt \
   --format simple-clustered
 
 # Example output:
@@ -116,7 +116,7 @@ deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/cli ./data .
 
 ```bash
 # Group IDs by scope using structural distance
-deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/cli ./data ./output/ids.txt \
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data ./output/ids.txt \
   --distance structural --threshold 0.3
 ```
 
@@ -124,11 +124,11 @@ deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/cli ./data .
 
 ```bash
 # K-Means clustering with 5 clusters
-deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/cli ./data ./output/ids.txt \
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data ./output/ids.txt \
   --algorithm kmeans --k 5
 
 # Density-based clustering (DBSCAN)
-deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/cli ./data ./output/ids.txt \
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data ./output/ids.txt \
   --algorithm dbscan --epsilon 0.3 --min-points 2
 ```
 
@@ -136,15 +136,15 @@ deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/cli ./data .
 
 ```bash
 # JSON format (full structured data)
-deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/cli ./data ./output/clusters.json \
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data ./output/clusters.json \
   --format json
 
 # Markdown format (human-readable)
-deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/cli ./data ./output/clusters.md \
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data ./output/clusters.md \
   --format markdown
 
 # CSV format (spreadsheet compatible)
-deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/cli ./data ./output/clusters.csv \
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data ./output/clusters.csv \
   --format csv
 ```
 
@@ -154,19 +154,19 @@ Find IDs similar to a specific query:
 
 ```bash
 # Find top 10 IDs similar to "security"
-deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/cli ./data ./output/security.txt \
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data ./output/security.txt \
   --mode search --query "security" --top 10
 
 # Search with similarity scores
-deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/cli ./data ./output/security.txt \
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data ./output/security.txt \
   --mode search --query "security" --show-distance
 
 # Find IDs similar to a specific ID
-deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/cli ./data ./output/similar.txt \
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data ./output/similar.txt \
   --mode search --query "req:apikey:security-4f7b2e#20251111a"
 
 # Structural search (better for finding same-scope IDs)
-deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/cli ./data ./output/similar.txt \
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data ./output/similar.txt \
   --mode search --query "encryption" --distance structural --top 20
 ```
 
@@ -208,7 +208,7 @@ Choose the appropriate distance calculator for your use case:
 **Best when you want to group IDs by scope**
 
 ```bash
-deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/cli ./data ./output/ids.txt \
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data ./output/ids.txt \
   --distance structural --threshold 0.3
 ```
 
@@ -223,7 +223,7 @@ deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/cli ./data .
 **Compares strings by edit distance**
 
 ```bash
-deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/cli ./data ./output/ids.txt
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data ./output/ids.txt
 ```
 
 - Compares entire string character by character
@@ -236,7 +236,7 @@ deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/cli ./data .
 **Emphasizes prefix matching**
 
 ```bash
-deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/cli ./data ./output/ids.txt \
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data ./output/ids.txt \
   --distance jaro-winkler
 ```
 
@@ -249,7 +249,7 @@ deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/cli ./data .
 **N-gram based similarity**
 
 ```bash
-deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/cli ./data ./output/ids.txt \
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data ./output/ids.txt \
   --distance cosine
 ```
 
@@ -271,7 +271,7 @@ deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/cli ./data .
 For detailed help, run:
 
 ```bash
-deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/cli --help
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids --help
 ```
 
 ## Project Structure
