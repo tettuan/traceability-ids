@@ -12,7 +12,8 @@
       "data/**",
       "tmp/**",
       "docs/**",
-      "**/*.test.ts"
+      "**/*.test.ts",
+      "src/cli.ts"
     ]
   }
 }

@@ -1,67 +1,128 @@
 /**
- * トレーサビリティID
+ * Represents a traceability ID with parsed components and location information
+ *
+ * Traceability IDs follow the pattern: `{level}:{scope}:{semantic}-{hash}#{version}`
+ *
+ * @example
+ * ```ts
+ * // Example ID: "req:apikey:security-4f7b2e#20251111a"
+ * const id: TraceabilityId = {
+ *   fullId: "req:apikey:security-4f7b2e#20251111a",
+ *   level: "req",
+ *   scope: "apikey",
+ *   semantic: "security",
+ *   hash: "4f7b2e",
+ *   version: "20251111a",
+ *   filePath: "/path/to/document.md",
+ *   lineNumber: 42
+ * };
+ * ```
  */
 export interface TraceabilityId {
-  /** 完全なID文字列 */
+  /** The complete ID string as found in the source file */
   fullId: string;
-  /** {level}: コロンの前の文字列 */
+  /** The level component (before first colon) - typically indicates requirement type */
   level: string;
-  /** {scope}: 最初のコロンと2番目のコロンの間の文字列 */
+  /** The scope component (between first and second colon) - typically indicates feature area */
   scope: string;
-  /** {semantic}: 2番目のコロン後からハイフンまでの文字列 */
+  /** The semantic component (after second colon, before hyphen) - describes the requirement */
   semantic: string;
-  /** {hash}: ハイフン後からハッシュ記号までの文字列 */
+  /** The hash component (after hyphen, before hash symbol) - unique identifier */
   hash: string;
-  /** {version}: ハッシュ記号後の文字列 */
+  /** The version component (after hash symbol) - version or date identifier */
   version: string;
-  /** IDが見つかったファイルパス */
+  /** Absolute path to the file where this ID was found */
   filePath: string;
-  /** ファイル内での行番号 */
+  /** Line number in the file where this ID was found (1-indexed) */
   lineNumber: number;
 }
 
 /**
- * クラスタ
+ * Represents a cluster of related traceability IDs
+ *
+ * @example
+ * ```ts
+ * const cluster: Cluster = {
+ *   id: 1,
+ *   items: [id1, id2, id3],
+ *   centroid: id1  // Representative ID of this cluster
+ * };
+ * ```
  */
 export interface Cluster {
-  /** クラスタに含まれるID */
-  items: TraceabilityId[];
-  /** クラスタの代表ID（オプション） */
-  centroid?: TraceabilityId;
-  /** クラスタID */
+  /** Unique identifier for this cluster (1-indexed) */
   id: number;
+  /** Array of traceability IDs belonging to this cluster */
+  items: TraceabilityId[];
+  /** Representative ID of the cluster (optional, used by some algorithms) */
+  centroid?: TraceabilityId;
 }
 
 /**
- * クラスタリング結果
+ * The complete result of a clustering operation
+ *
+ * Contains all clusters and metadata about the clustering process.
+ *
+ * @example
+ * ```ts
+ * const result: ClusteringResult = {
+ *   clusters: [cluster1, cluster2, cluster3],
+ *   algorithm: "hierarchical",
+ *   distanceCalculator: "levenshtein"
+ * };
+ * ```
  */
 export interface ClusteringResult {
-  /** クラスタの配列 */
+  /** Array of clusters produced by the clustering algorithm */
   clusters: Cluster[];
-  /** 使用したアルゴリズム名 */
+  /** Name of the clustering algorithm used (e.g., "hierarchical", "kmeans", "dbscan") */
   algorithm: string;
-  /** 使用した距離計算手法 */
+  /** Name of the distance calculator used (e.g., "levenshtein", "structural") */
   distanceCalculator: string;
 }
 
 /**
- * 類似度検索の1件の結果
+ * A single item in similarity search results
+ *
+ * Contains a traceability ID and its distance score from the search query.
+ *
+ * @example
+ * ```ts
+ * const item: SimilarityItem = {
+ *   id: myId,
+ *   distance: 0.35  // Lower values indicate higher similarity
+ * };
+ * ```
  */
 export interface SimilarityItem {
-  /** ID情報 */
+  /** The traceability ID */
   id: TraceabilityId;
-  /** クエリとの距離スコア */
+  /** Distance score from the query (lower = more similar) */
   distance: number;
 }
 
 /**
- * 類似度検索結果
+ * The complete result of a similarity search operation
+ *
+ * Contains search results sorted by similarity (most similar first).
+ *
+ * @example
+ * ```ts
+ * const result: SimilaritySearchResult = {
+ *   query: "security",
+ *   items: [
+ *     { id: securityId, distance: 0.1 },
+ *     { id: encryptionId, distance: 0.3 }
+ *   ],
+ *   distanceCalculator: "structural"
+ * };
+ * ```
  */
 export interface SimilaritySearchResult {
-  /** 検索クエリ */
+  /** The search query string used */
   query: string;
-  /** 類似度順にソートされたID配列 */
+  /** Array of results sorted by distance (closest first) */
   items: SimilarityItem[];
-  /** 使用した距離計算手法 */
+  /** Name of the distance calculator used */
   distanceCalculator: string;
 }

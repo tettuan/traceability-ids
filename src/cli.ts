@@ -65,58 +65,137 @@ function getClusteringAlgorithm(
  * 使用方法を表示
  */
 function showUsage() {
-  console.log(`Usage: deno run --allow-read --allow-write src/cli.ts <input-dir> <output-file> [options]
+  console.log(`Traceability IDs - Extract and cluster traceability IDs from markdown files
 
-Arguments:
-  <input-dir>     Input directory to scan for .md files
-  <output-file>   Output file path for results
+USAGE:
+  deno run --allow-read --allow-write src/cli.ts <input-dir> <output-file> [options]
 
-Options (Common):
+ARGUMENTS:
+  <input-dir>     Directory to scan for .md files (recursively scanned)
+  <output-file>   Path where results will be written
+
+GLOBAL OPTIONS:
   --mode <mode>           Execution mode (default: cluster)
-                          Available: cluster, search
-  --distance <name>       Distance calculator (default: levenshtein)
-                          Available: levenshtein, jaro-winkler, cosine, structural
+                          • cluster - Group similar IDs into clusters
+                          • search  - Find IDs similar to a query
+
+  --distance <name>       Distance calculation method (default: levenshtein)
+                          • levenshtein  - Edit distance (simple, general-purpose)
+                          • jaro-winkler - Prefix-weighted similarity
+                          • cosine       - N-gram based similarity
+                          • structural   - Component-aware (RECOMMENDED for scope grouping)
+
   --format <format>       Output format (default: simple)
-                          Available: simple, simple-clustered, json, markdown, csv
+                          • simple           - Unique ID list, one per line
+                          • simple-clustered - IDs grouped by cluster
+                          • json            - Full structured data
+                          • markdown        - Human-readable report
+                          • csv             - Spreadsheet-compatible
 
-Options (Clustering Mode):
-  --algorithm <name>      Clustering algorithm (default: hierarchical)
-                          Available: hierarchical, kmeans, dbscan
-  --threshold <number>    Threshold for hierarchical clustering (default: 10)
+  --help                  Show this help message
+
+CLUSTERING MODE OPTIONS:
+  --algorithm <name>      Algorithm to use (default: hierarchical)
+                          • hierarchical - Agglomerative clustering (bottom-up)
+                          • kmeans       - Partition-based clustering
+                          • dbscan       - Density-based clustering
+
+  --threshold <number>    Distance threshold for hierarchical (default: 10)
+                          IDs within this distance will be merged into clusters
+
   --k <number>            Number of clusters for K-Means (default: 0 = auto)
-  --epsilon <number>      Radius for DBSCAN (default: 0.3)
-  --min-points <number>   Minimum points for DBSCAN (default: 2)
+                          0 means automatic estimation based on dataset size
 
-Options (Search Mode):
-  --query <string>        Search query (required in search mode)
+  --epsilon <number>      Neighborhood radius for DBSCAN (default: 0.3)
+                          Defines the maximum distance between cluster members
+
+  --min-points <number>   Minimum points for DBSCAN core (default: 2)
+                          Minimum neighbors required to form a dense region
+
+SEARCH MODE OPTIONS:
+  --query <string>        Search query (REQUIRED in search mode)
+                          Can be a full ID, keyword, or partial match
+
   --top <number>          Return only top N results (default: all)
-  --show-distance         Show distance scores (default: false)
+                          Limits output to most similar matches
 
-Examples (Clustering Mode):
-  # Basic usage - simple ID list
-  deno run --allow-read --allow-write src/cli.ts ./data ./output/ids.txt
+  --show-distance         Include distance scores in output (default: false)
+                          Useful for understanding similarity rankings
 
-  # Using structural distance for scope-based grouping
-  deno run --allow-read --allow-write src/cli.ts ./data ./output/ids.txt \\
-    --distance structural --threshold 0.3
+EXAMPLES:
 
-  # K-Means clustering with 5 clusters
-  deno run --allow-read --allow-write src/cli.ts ./data ./output/ids.txt \\
-    --algorithm kmeans --k 5
+  Clustering Examples:
 
-Examples (Search Mode):
-  # Search for IDs similar to "security"
-  deno run --allow-read --allow-write src/cli.ts ./data ./output/similar.txt \\
-    --mode search --query "security" --top 10
+    # Basic clustering - finds similar IDs and groups them
+    deno run --allow-read --allow-write src/cli.ts ./docs ./output/ids.txt
 
-  # Search with distance scores
-  deno run --allow-read --allow-write src/cli.ts ./data ./output/similar.txt \\
-    --mode search --query "encryption" --show-distance
+    # Group IDs by scope using structural distance (recommended)
+    deno run --allow-read --allow-write src/cli.ts ./docs ./output/ids.txt \\
+      --distance structural --threshold 0.3
 
-  # Search using structural distance
-  deno run --allow-read --allow-write src/cli.ts ./data ./output/similar.txt \\
-    --mode search --query "req:apikey:security-4f7b2e#20251111a" \\
-    --distance structural --top 20
+    # Create exactly 5 clusters using K-Means
+    deno run --allow-read --allow-write src/cli.ts ./docs ./output/ids.txt \\
+      --algorithm kmeans --k 5
+
+    # Density-based clustering to find natural groups
+    deno run --allow-read --allow-write src/cli.ts ./docs ./output/ids.txt \\
+      --algorithm dbscan --epsilon 0.3 --min-points 2
+
+    # Output with cluster boundaries visible
+    deno run --allow-read --allow-write src/cli.ts ./docs ./output/ids.txt \\
+      --format simple-clustered
+
+  Search Examples:
+
+    # Find IDs related to "security" (top 10 most similar)
+    deno run --allow-read --allow-write src/cli.ts ./docs ./output/security.txt \\
+      --mode search --query "security" --top 10
+
+    # Search with similarity scores shown
+    deno run --allow-read --allow-write src/cli.ts ./docs ./output/security.txt \\
+      --mode search --query "security" --show-distance
+
+    # Find IDs similar to a specific ID
+    deno run --allow-read --allow-write src/cli.ts ./docs ./output/similar.txt \\
+      --mode search --query "req:apikey:security-4f7b2e#20251111a"
+
+    # Structural search (better for finding same-scope IDs)
+    deno run --allow-read --allow-write src/cli.ts ./docs ./output/similar.txt \\
+      --mode search --query "encryption" --distance structural --top 20
+
+    # Get detailed JSON output for programmatic use
+    deno run --allow-read --allow-write src/cli.ts ./docs ./output/results.json \\
+      --mode search --query "auth" --format json
+
+DISTANCE CALCULATION GUIDE:
+
+  Choose the right distance calculator for your use case:
+
+  • Use 'structural' when you want to group IDs by scope or structure
+    Example: Group all "req:apikey:*" IDs together
+
+  • Use 'levenshtein' for general-purpose similarity
+    Example: Find typos or similar naming patterns
+
+  • Use 'jaro-winkler' to emphasize prefix matching
+    Example: Group IDs that start similarly
+
+  • Use 'cosine' for substring similarity
+    Example: Find IDs with common word parts
+
+TRACEABILITY ID FORMAT:
+
+  Pattern: {level}:{scope}:{semantic}-{hash}#{version}
+  Example: req:apikey:security-4f7b2e#20251111a
+
+  Components:
+    • level    : Requirement type (e.g., req, design, test)
+    • scope    : Feature area (e.g., apikey, dashboard)
+    • semantic : Description (e.g., security, encryption)
+    • hash     : Unique identifier
+    • version  : Version or date
+
+For more information, see: https://github.com/your-repo/traceability-ids
 `);
 }
 

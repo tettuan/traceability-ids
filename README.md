@@ -1,10 +1,19 @@
 # traceability-ids
 
+A tool for extracting and clustering traceability IDs from markdown files based on similarity.
+
 トレーサビリティIDを抽出し、類似度に基づいてクラスタリングするツール
 
-## 概要
+[![JSR](https://jsr.io/badges/@scope/traceability-ids)](https://jsr.io/@scope/traceability-ids)
+[![JSR Score](https://jsr.io/badges/@scope/traceability-ids/score)](https://jsr.io/@scope/traceability-ids)
 
-Markdownファイル内に存在するトレーサビリティIDを自動抽出し、文字列の類似度に基づいてクラスタリングを行います。Pure TypeScriptで実装され、複数のクラスタリングアルゴリズムと距離計算手法を切り替え可能です。
+---
+
+## Overview / 概要
+
+**English:** This library automatically extracts traceability IDs from Markdown files and clusters them based on string similarity. Implemented in pure TypeScript with support for multiple clustering algorithms and distance calculation methods. Works with Deno and is designed for JSR publication.
+
+**Japanese:** Markdownファイル内に存在するトレーサビリティIDを自動抽出し、文字列の類似度に基づいてクラスタリングを行います。Pure TypeScriptで実装され、複数のクラスタリングアルゴリズムと距離計算手法を切り替え可能です。
 
 ## プロジェクトの目的
 
@@ -249,25 +258,165 @@ deno run --allow-read --allow-write src/cli.ts ./data ./output/ids.txt \
 - [アーキテクチャ設計](docs/architecture.md) - 詳細な設計とインターフェース定義
 - [トレーサビリティID定義](docs/id.md) - ID書式の詳細仕様
 
-## ライブラリとしての使用
+## Library Usage / ライブラリとしての使用
+
+### Installation / インストール
+
+```bash
+# Using JSR (recommended)
+deno add @scope/traceability-ids
+
+# Or import directly
+import { ... } from "jsr:@scope/traceability-ids";
+```
+
+### Quick Start / クイックスタート
 
 ```typescript
-import { scanFiles } from "./core/scanner.ts";
-import { extractIds } from "./core/extractor.ts";
-import { LevenshteinDistance } from "./distance/levenshtein.ts";
-import { HierarchicalClustering } from "./clustering/hierarchical.ts";
-import { createDistanceMatrix } from "./distance/calculator.ts";
+import {
+  scanFiles,
+  extractIds,
+  LevenshteinDistance,
+  HierarchicalClustering,
+  createDistanceMatrix,
+  formatAsSimple,
+} from "@scope/traceability-ids";
 
-// ファイルをスキャンしてIDを抽出
-const files = await scanFiles("./data");
+// 1. Scan markdown files / ファイルをスキャン
+const files = await scanFiles("./docs");
+
+// 2. Extract traceability IDs / IDを抽出
 const ids = await extractIds(files);
 
-// クラスタリングを実行
+// 3. Create distance matrix / 距離行列を作成
 const calculator = new LevenshteinDistance();
 const matrix = createDistanceMatrix(ids.map(id => id.fullId), calculator);
-const algorithm = new HierarchicalClustering(0.5);
+
+// 4. Cluster IDs / クラスタリングを実行
+const algorithm = new HierarchicalClustering(10);
 const clusters = algorithm.cluster(ids, matrix);
+
+// 5. Format results / 結果をフォーマット
+const result = {
+  clusters,
+  algorithm: algorithm.name,
+  distanceCalculator: calculator.name,
+};
+const output = formatAsSimple(result);
+console.log(output);
 ```
+
+### Advanced Examples / 応用例
+
+#### Scope-based Grouping / スコープ別グルーピング
+
+```typescript
+import {
+  scanFiles,
+  extractIds,
+  StructuralDistance,
+  HierarchicalClustering,
+  createDistanceMatrix,
+} from "@scope/traceability-ids";
+
+const files = await scanFiles("./docs");
+const ids = await extractIds(files);
+
+// Use structural distance to group by scope
+// 構造的距離でスコープ別にグルーピング
+const calculator = new StructuralDistance();
+const matrix = createDistanceMatrix(ids.map(id => id.fullId), calculator);
+
+const algorithm = new HierarchicalClustering(0.3);
+const clusters = algorithm.cluster(ids, matrix);
+
+// Group results by scope
+clusters.forEach((cluster, idx) => {
+  console.log(`Cluster ${idx + 1}:`);
+  cluster.items.forEach(item => {
+    console.log(`  ${item.scope} - ${item.semantic}`);
+  });
+});
+```
+
+#### Similarity Search / 類似度検索
+
+```typescript
+import {
+  scanFiles,
+  extractIds,
+  searchSimilar,
+  StructuralDistance,
+  formatSearchResult,
+} from "@scope/traceability-ids";
+
+const files = await scanFiles("./docs");
+const ids = await extractIds(files);
+
+// Find IDs similar to "security"
+// "security"に類似したIDを検索
+const calculator = new StructuralDistance();
+const results = searchSimilar("security", ids, calculator, { top: 10 });
+
+// Display results with distances
+// 距離付きで結果を表示
+const output = formatSearchResult(results, "simple", true);
+console.log(output);
+
+// Or get structured data
+// または構造化データを取得
+results.items.forEach(item => {
+  console.log(`${item.id.fullId} - Distance: ${item.distance.toFixed(3)}`);
+});
+```
+
+#### Keyword Filtering / キーワードフィルタリング
+
+```typescript
+import {
+  scanFiles,
+  extractIds,
+  searchByKeyword,
+} from "@scope/traceability-ids";
+
+const files = await scanFiles("./docs");
+const ids = await extractIds(files);
+
+// Find all IDs containing "security"
+// "security"を含む全IDを検索
+const matches = searchByKeyword("security", ids);
+
+console.log(`Found ${matches.length} IDs containing "security":`);
+matches.forEach(id => {
+  console.log(`  ${id.fullId} (${id.filePath}:${id.lineNumber})`);
+});
+```
+
+#### Custom Distance Calculator / カスタム距離計算器
+
+```typescript
+import type { DistanceCalculator } from "@scope/traceability-ids";
+
+class CustomDistance implements DistanceCalculator {
+  readonly name = "custom";
+
+  calculate(a: string, b: string): number {
+    // Your custom distance logic here
+    // カスタム距離計算ロジック
+    return Math.abs(a.length - b.length);
+  }
+}
+
+// Use with clustering
+const calculator = new CustomDistance();
+// ... rest of clustering code
+```
+
+### API Reference / API リファレンス
+
+For complete API documentation, see the [JSR documentation](https://jsr.io/@scope/traceability-ids).
+
+完全なAPIドキュメントは[JSRドキュメント](https://jsr.io/@scope/traceability-ids)を参照してください。
 
 ## 開発状況
 
