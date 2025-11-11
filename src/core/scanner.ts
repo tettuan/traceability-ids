@@ -1,4 +1,4 @@
-import { walk } from "jsr:@std/fs/walk";
+import { walk } from "jsr:@std/fs@^1.0.8/walk";
 
 /**
  * 指定されたディレクトリの .md ファイルを再帰的にスキャンする

@@ -1,4 +1,4 @@
-import { parseArgs } from "jsr:@std/cli/parse-args";
+import { parseArgs } from "jsr:@std/cli@^1.0.9/parse-args";
 import { scanFiles } from "./core/scanner.ts";
 import { extractIds } from "./core/extractor.ts";
 import { createDistanceMatrix } from "./distance/calculator.ts";
