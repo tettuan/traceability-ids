@@ -1,19 +1,24 @@
 # traceability-ids
 
-A CLI tool for extracting and clustering traceability IDs from markdown files based on similarity.
+A CLI tool for extracting and clustering traceability IDs from markdown files
+based on similarity.
 
 [![JSR](https://jsr.io/badges/@aidevtool/traceability-ids)](https://jsr.io/@aidevtool/traceability-ids)
 [![JSR Score](https://jsr.io/badges/@aidevtool/traceability-ids/score)](https://jsr.io/@aidevtool/traceability-ids)
 
 ## Overview
 
-This tool automatically extracts traceability IDs from Markdown files and clusters them based on string similarity. Implemented in pure TypeScript with support for multiple clustering algorithms and distance calculation methods.
+This tool automatically extracts traceability IDs from Markdown files and
+clusters them based on string similarity. Implemented in pure TypeScript with
+support for multiple clustering algorithms and distance calculation methods.
 
 ### Purpose
 
-While `grep` can easily find traceability IDs in files, **discovering the location of similar IDs** is difficult.
+While `grep` can easily find traceability IDs in files, **discovering the
+location of similar IDs** is difficult.
 
-This tool extracts IDs and clusters them by similarity, outputting a **unique ID list sorted by similarity**. This enables:
+This tool extracts IDs and clusters them by similarity, outputting a **unique ID
+list sorted by similarity**. This enables:
 
 - Inferring which files contain similar IDs
 - Easier discovery of related IDs by reviewing them in clustered order
@@ -174,30 +179,30 @@ deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data ./out
 
 ### Global Options
 
-| Option | Description | Default | Values |
-|--------|-------------|---------|--------|
-| `--mode` | Execution mode | `cluster` | `cluster`, `search` |
-| `--distance` | Distance calculation method | `levenshtein` | `levenshtein`, `jaro-winkler`, `cosine`, `structural` |
-| `--format` | Output format | `simple` | `simple`, `simple-clustered`, `json`, `markdown`, `csv` |
-| `--help` | Show help message | - | - |
+| Option       | Description                 | Default       | Values                                                  |
+| ------------ | --------------------------- | ------------- | ------------------------------------------------------- |
+| `--mode`     | Execution mode              | `cluster`     | `cluster`, `search`                                     |
+| `--distance` | Distance calculation method | `levenshtein` | `levenshtein`, `jaro-winkler`, `cosine`, `structural`   |
+| `--format`   | Output format               | `simple`      | `simple`, `simple-clustered`, `json`, `markdown`, `csv` |
+| `--help`     | Show help message           | -             | -                                                       |
 
 ### Clustering Mode Options
 
-| Option | Description | Default | Values |
-|--------|-------------|---------|--------|
-| `--algorithm` | Clustering algorithm | `hierarchical` | `hierarchical`, `kmeans`, `dbscan` |
-| `--threshold` | Threshold for hierarchical | `10` | Number (edit distance) |
-| `--k` | Number of clusters for K-Means | `0` | Number (0=auto) |
-| `--epsilon` | Neighborhood radius for DBSCAN | `0.3` | Number |
-| `--min-points` | Minimum points for DBSCAN | `2` | Number |
+| Option         | Description                    | Default        | Values                             |
+| -------------- | ------------------------------ | -------------- | ---------------------------------- |
+| `--algorithm`  | Clustering algorithm           | `hierarchical` | `hierarchical`, `kmeans`, `dbscan` |
+| `--threshold`  | Threshold for hierarchical     | `10`           | Number (edit distance)             |
+| `--k`          | Number of clusters for K-Means | `0`            | Number (0=auto)                    |
+| `--epsilon`    | Neighborhood radius for DBSCAN | `0.3`          | Number                             |
+| `--min-points` | Minimum points for DBSCAN      | `2`            | Number                             |
 
 ### Search Mode Options
 
-| Option | Description | Default | Values |
-|--------|-------------|---------|--------|
-| `--query` | Search query (REQUIRED) | - | String |
-| `--top` | Return only top N results | all | Number |
-| `--show-distance` | Include distance scores | `false` | Boolean |
+| Option            | Description               | Default | Values  |
+| ----------------- | ------------------------- | ------- | ------- |
+| `--query`         | Search query (REQUIRED)   | -       | String  |
+| `--top`           | Return only top N results | all     | Number  |
+| `--show-distance` | Include distance scores   | `false` | Boolean |
 
 ## Distance Calculation Guide
 
@@ -229,7 +234,8 @@ deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data ./out
 - Compares entire string character by character
 - Does not consider ID structure
 - **Pros**: Simple and general-purpose
-- **Cons**: May split same-scope IDs when using hierarchical clustering (chaining effect)
+- **Cons**: May split same-scope IDs when using hierarchical clustering
+  (chaining effect)
 
 ### Jaro-Winkler Distance
 
@@ -259,12 +265,12 @@ deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data ./out
 
 ### Recommended Combinations
 
-| Purpose | Distance | Algorithm | Options |
-|---------|----------|-----------|---------|
-| Group by scope | `structural` | `hierarchical` | `--threshold 0.3` |
-| General clustering | `levenshtein` | `hierarchical` | `--threshold 10` |
-| Specify cluster count | any | `kmeans` | `--k 5` |
-| Remove noise | any | `dbscan` | `--epsilon 0.3 --min-points 2` |
+| Purpose               | Distance      | Algorithm      | Options                        |
+| --------------------- | ------------- | -------------- | ------------------------------ |
+| Group by scope        | `structural`  | `hierarchical` | `--threshold 0.3`              |
+| General clustering    | `levenshtein` | `hierarchical` | `--threshold 10`               |
+| Specify cluster count | any           | `kmeans`       | `--k 5`                        |
+| Remove noise          | any           | `dbscan`       | `--epsilon 0.3 --min-points 2` |
 
 ## Help
 

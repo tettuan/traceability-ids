@@ -1,4 +1,4 @@
-import { assertEquals, assertAlmostEquals } from "jsr:@std/assert";
+import { assertAlmostEquals, assertEquals } from "jsr:@std/assert";
 import { JaroWinklerDistance } from "./jaro_winkler.ts";
 
 Deno.test("JaroWinklerDistance - identical strings", () => {

@@ -72,8 +72,9 @@ Deno.test("KMeansClustering - two clusters", () => {
 
 Deno.test("KMeansClustering - auto k estimation", () => {
   const algorithm = new KMeansClustering(0); // Auto estimate k
-  const items = Array.from({ length: 10 }, (_, i) =>
-    createTestId(`req:test:item${i}-abc123#v1`, i)
+  const items = Array.from(
+    { length: 10 },
+    (_, i) => createTestId(`req:test:item${i}-abc123#v1`, i),
   );
 
   // Create a simple distance matrix
@@ -94,8 +95,9 @@ Deno.test("KMeansClustering - auto k estimation", () => {
 
 Deno.test("KMeansClustering - convergence", () => {
   const algorithm = new KMeansClustering(2, 10, 42); // Only 10 iterations max
-  const items = Array.from({ length: 6 }, (_, i) =>
-    createTestId(`req:test:item${i}-abc123#v1`, i)
+  const items = Array.from(
+    { length: 6 },
+    (_, i) => createTestId(`req:test:item${i}-abc123#v1`, i),
   );
 
   // Two clear groups: {0,1,2} and {3,4,5}
@@ -126,8 +128,9 @@ Deno.test("KMeansClustering - empty input", () => {
 });
 
 Deno.test("KMeansClustering - reproducibility with seed", () => {
-  const items = Array.from({ length: 10 }, (_, i) =>
-    createTestId(`req:test:item${i}-abc123#v1`, i)
+  const items = Array.from(
+    { length: 10 },
+    (_, i) => createTestId(`req:test:item${i}-abc123#v1`, i),
   );
 
   const distanceMatrix = items.map((_, i) =>

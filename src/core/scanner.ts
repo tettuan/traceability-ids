@@ -9,11 +9,13 @@ export async function scanFiles(dirPath: string): Promise<string[]> {
   const files: string[] = [];
 
   try {
-    for await (const entry of walk(dirPath, {
-      exts: [".md"],
-      includeDirs: false,
-      followSymlinks: false,
-    })) {
+    for await (
+      const entry of walk(dirPath, {
+        exts: [".md"],
+        includeDirs: false,
+        followSymlinks: false,
+      })
+    ) {
       files.push(entry.path);
     }
   } catch (error) {

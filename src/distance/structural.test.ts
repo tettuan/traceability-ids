@@ -1,4 +1,4 @@
-import { assertEquals, assertAlmostEquals } from "jsr:@std/assert";
+import { assertAlmostEquals, assertEquals } from "jsr:@std/assert";
 import { StructuralDistance } from "./structural.ts";
 
 Deno.test("StructuralDistance - identical IDs", () => {

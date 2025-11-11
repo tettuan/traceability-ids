@@ -167,8 +167,9 @@ Deno.test("DBSCANClustering - empty input", () => {
 
 Deno.test("DBSCANClustering - chain of points", () => {
   const algorithm = new DBSCANClustering(5, 2);
-  const items = Array.from({ length: 5 }, (_, i) =>
-    createTestId(`req:test:item${i}-abc123#v1`, i)
+  const items = Array.from(
+    { length: 5 },
+    (_, i) => createTestId(`req:test:item${i}-abc123#v1`, i),
   );
 
   // Chain: 0-1-2-3-4, each 4 units apart

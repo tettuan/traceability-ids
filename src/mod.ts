@@ -41,10 +41,6 @@
 
 export type {
   /**
-   * Represents a parsed traceability ID with its components and location information
-   */
-  TraceabilityId,
-  /**
    * Represents a cluster of related traceability IDs
    */
   Cluster,
@@ -60,6 +56,10 @@ export type {
    * The result of a similarity search operation
    */
   SimilaritySearchResult,
+  /**
+   * Represents a parsed traceability ID with its components and location information
+   */
+  TraceabilityId,
 } from "./core/types.ts";
 
 // ============================================================================

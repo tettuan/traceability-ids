@@ -42,7 +42,10 @@ Deno.test("searchSimilar - basic search with Levenshtein distance", () => {
   assertEquals(result.distanceCalculator, "levenshtein");
 
   // 最も近いのは "security" を含むID
-  assertEquals(result.items[0].id.fullId, "req:apikey:security-4f7b2e#20251111a");
+  assertEquals(
+    result.items[0].id.fullId,
+    "req:apikey:security-4f7b2e#20251111a",
+  );
 });
 
 Deno.test("searchSimilar - with top N limit", () => {
@@ -75,7 +78,9 @@ Deno.test("searchSimilar - results are sorted by distance", () => {
     assertEquals(
       result.items[i].distance <= result.items[i + 1].distance,
       true,
-      `Items should be sorted by distance: ${result.items[i].distance} <= ${result.items[i + 1].distance}`,
+      `Items should be sorted by distance: ${result.items[i].distance} <= ${
+        result.items[i + 1].distance
+      }`,
     );
   }
 });

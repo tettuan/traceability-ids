@@ -108,10 +108,16 @@ req:test_scope:test_semantic-test123#20250101a
 
     // Check various formats are captured
     assertEquals(ids[0].fullId, "req:scope1:semantic1-hash1#v1");
-    assertEquals(ids[1].fullId, "design:scope-name:semantic-name-abc123#version1");
+    assertEquals(
+      ids[1].fullId,
+      "design:scope-name:semantic-name-abc123#version1",
+    );
     assertEquals(ids[2].fullId, "REQ:SCOPE:SEMANTIC-HASH#VERSION");
     assertEquals(ids[3].fullId, "req:a:b-c#d");
-    assertEquals(ids[4].fullId, "req:test_scope:test_semantic-test123#20250101a");
+    assertEquals(
+      ids[4].fullId,
+      "req:test_scope:test_semantic-test123#20250101a",
+    );
   } finally {
     await Deno.remove(testFile);
   }

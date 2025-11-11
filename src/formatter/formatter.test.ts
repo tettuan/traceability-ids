@@ -1,5 +1,10 @@
 import { assertEquals, assertStringIncludes } from "jsr:@std/assert";
-import { formatAsJson, formatAsMarkdown, formatAsCsv, formatResult } from "./formatter.ts";
+import {
+  formatAsCsv,
+  formatAsJson,
+  formatAsMarkdown,
+  formatResult,
+} from "./formatter.ts";
 import type { ClusteringResult, TraceabilityId } from "../core/types.ts";
 
 // テスト用のデータを作成
@@ -148,7 +153,10 @@ Deno.test("formatAsCsv - contains data rows", () => {
   // Check first data row
   assertStringIncludes(lines[1], '1,"req:apikey:hierarchy-9a2f4d#20251111a"');
   assertStringIncludes(lines[1], '"test1.md",10');
-  assertStringIncludes(lines[1], '"req","apikey","hierarchy","9a2f4d","20251111a"');
+  assertStringIncludes(
+    lines[1],
+    '"req","apikey","hierarchy","9a2f4d","20251111a"',
+  );
 });
 
 Deno.test("formatAsCsv - proper CSV escaping", () => {

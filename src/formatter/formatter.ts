@@ -26,10 +26,12 @@ export function formatAsMarkdown(result: ClusteringResult): string {
   md += `- Algorithm: ${result.algorithm}\n`;
   md += `- Distance Calculator: ${result.distanceCalculator}\n`;
   md += `- Total Clusters: ${result.clusters.length}\n`;
-  md += `- Total IDs: ${result.clusters.reduce(
-    (sum, c) => sum + c.items.length,
-    0,
-  )}\n\n`;
+  md += `- Total IDs: ${
+    result.clusters.reduce(
+      (sum, c) => sum + c.items.length,
+      0,
+    )
+  }\n\n`;
 
   result.clusters.forEach((cluster) => {
     md += `## Cluster ${cluster.id} (${cluster.items.length} items)\n\n`;
@@ -63,7 +65,8 @@ export function formatAsCsv(result: ClusteringResult): string {
 
   result.clusters.forEach((cluster) => {
     cluster.items.forEach((item) => {
-      csv += `${cluster.id},"${item.fullId}","${item.filePath}",${item.lineNumber},"${item.level}","${item.scope}","${item.semantic}","${item.hash}","${item.version}"\n`;
+      csv +=
+        `${cluster.id},"${item.fullId}","${item.filePath}",${item.lineNumber},"${item.level}","${item.scope}","${item.semantic}","${item.hash}","${item.version}"\n`;
     });
   });
 
@@ -177,7 +180,9 @@ export function formatSearchResultAsCsv(
     "Rank,Distance,TraceabilityID,FilePath,LineNumber,Level,Scope,Semantic,Hash,Version\n";
 
   result.items.forEach((item, index) => {
-    csv += `${index + 1},${item.distance},"${item.id.fullId}","${item.id.filePath}",${item.id.lineNumber},"${item.id.level}","${item.id.scope}","${item.id.semantic}","${item.id.hash}","${item.id.version}"\n`;
+    csv += `${
+      index + 1
+    },${item.distance},"${item.id.fullId}","${item.id.filePath}",${item.id.lineNumber},"${item.id.level}","${item.id.scope}","${item.id.semantic}","${item.id.hash}","${item.id.version}"\n`;
   });
 
   return csv;

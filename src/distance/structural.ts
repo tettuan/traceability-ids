@@ -59,17 +59,15 @@ export class StructuralDistance implements DistanceCalculator {
     // 各要素の距離を計算
     let totalDistance = 0;
 
-    totalDistance +=
-      this.weights.level * this.componentDistance(partsA.level, partsB.level);
-    totalDistance +=
-      this.weights.scope * this.componentDistance(partsA.scope, partsB.scope);
-    totalDistance +=
-      this.weights.semantic *
+    totalDistance += this.weights.level *
+      this.componentDistance(partsA.level, partsB.level);
+    totalDistance += this.weights.scope *
+      this.componentDistance(partsA.scope, partsB.scope);
+    totalDistance += this.weights.semantic *
       this.componentDistance(partsA.semantic, partsB.semantic);
-    totalDistance +=
-      this.weights.hash * this.componentDistance(partsA.hash, partsB.hash);
-    totalDistance +=
-      this.weights.version *
+    totalDistance += this.weights.hash *
+      this.componentDistance(partsA.hash, partsB.hash);
+    totalDistance += this.weights.version *
       this.componentDistance(partsA.version, partsB.version);
 
     return totalDistance;

@@ -75,7 +75,8 @@ deno run --allow-read --allow-write src/cli.ts <input-dir> <output-file> --mode 
 
 ### オプション引数（クラスタリングモード）
 
-- **`--algorithm <name>`** - クラスタリングアルゴリズム（デフォルト: hierarchical）
+- **`--algorithm <name>`** - クラスタリングアルゴリズム（デフォルト:
+  hierarchical）
   - `hierarchical` - 階層的クラスタリング
   - `kmeans` - K-Means
   - `dbscan` - DBSCAN
@@ -255,7 +256,7 @@ export interface DistanceCalculator {
  */
 export function createDistanceMatrix(
   items: string[],
-  calculator: DistanceCalculator
+  calculator: DistanceCalculator,
 ): number[][] {
   const n = items.length;
   const matrix: number[][] = Array(n).fill(0).map(() => Array(n).fill(0));
@@ -277,7 +278,7 @@ export function createDistanceMatrix(
 ### clustering/algorithm.ts
 
 ```typescript
-import type { TraceabilityId, Cluster } from "../core/types.ts";
+import type { Cluster, TraceabilityId } from "../core/types.ts";
 
 /**
  * クラスタリングアルゴリズムインターフェース
@@ -381,7 +382,15 @@ import type { ClusteringAlgorithm } from "./clustering/algorithm.ts";
 async function main() {
   // 引数をパース
   const args = parseArgs(Deno.args, {
-    string: ["algorithm", "distance", "format", "threshold", "k", "epsilon", "min-points"],
+    string: [
+      "algorithm",
+      "distance",
+      "format",
+      "threshold",
+      "k",
+      "epsilon",
+      "min-points",
+    ],
     default: {
       algorithm: "hierarchical",
       distance: "levenshtein",
@@ -395,7 +404,9 @@ async function main() {
 
   // 必須引数のチェック
   if (args._.length < 2) {
-    console.error("Usage: deno run --allow-read --allow-write src/cli.ts <input-dir> <output-file> [options]");
+    console.error(
+      "Usage: deno run --allow-read --allow-write src/cli.ts <input-dir> <output-file> [options]",
+    );
     Deno.exit(1);
   }
 
@@ -406,12 +417,15 @@ async function main() {
   const calculator: DistanceCalculator = getDistanceCalculator(args.distance);
 
   // クラスタリングアルゴリズムを選択
-  const algorithm: ClusteringAlgorithm = getClusteringAlgorithm(args.algorithm, {
-    threshold: parseFloat(args.threshold),
-    k: parseInt(args.k),
-    epsilon: parseFloat(args.epsilon),
-    minPoints: parseInt(args["min-points"]),
-  });
+  const algorithm: ClusteringAlgorithm = getClusteringAlgorithm(
+    args.algorithm,
+    {
+      threshold: parseFloat(args.threshold),
+      k: parseInt(args.k),
+      epsilon: parseFloat(args.epsilon),
+      minPoints: parseInt(args["min-points"]),
+    },
+  );
 
   // 1. ファイルをスキャン
   console.log(`Scanning files in: ${inputDir}`);
@@ -426,8 +440,8 @@ async function main() {
   // 3. 距離行列を作成
   console.log(`Calculating distance matrix using: ${calculator.name}`);
   const matrix = createDistanceMatrix(
-    ids.map(id => id.fullId),
-    calculator
+    ids.map((id) => id.fullId),
+    calculator,
   );
 
   // 4. クラスタリング実行
@@ -437,7 +451,11 @@ async function main() {
 
   // 5. 結果を出力
   console.log(`Writing results to: ${outputFile}`);
-  await writeOutput(outputFile, { clusters, algorithm: algorithm.name, distanceCalculator: calculator.name }, args.format);
+  await writeOutput(outputFile, {
+    clusters,
+    algorithm: algorithm.name,
+    distanceCalculator: calculator.name,
+  }, args.format);
 
   console.log("Done!");
 }
@@ -457,7 +475,10 @@ function getDistanceCalculator(name: string): DistanceCalculator {
   }
 }
 
-function getClusteringAlgorithm(name: string, options: any): ClusteringAlgorithm {
+function getClusteringAlgorithm(
+  name: string,
+  options: any,
+): ClusteringAlgorithm {
   switch (name) {
     case "hierarchical":
       return new HierarchicalClustering(options.threshold);
@@ -510,11 +531,14 @@ function formatAsMarkdown(result: any): string {
 
 function formatAsCsv(result: any): string {
   // CSV形式でフォーマット
-  let csv = "ClusterID,TraceabilityID,FilePath,LineNumber,Level,Scope,Semantic,Hash,Version\n";
+  let csv =
+    "ClusterID,TraceabilityID,FilePath,LineNumber,Level,Scope,Semantic,Hash,Version\n";
 
   result.clusters.forEach((cluster: any, clusterIndex: number) => {
     cluster.items.forEach((item: any) => {
-      csv += `${clusterIndex + 1},${item.fullId},${item.filePath},${item.lineNumber},${item.level},${item.scope},${item.semantic},${item.hash},${item.version}\n`;
+      csv += `${
+        clusterIndex + 1
+      },${item.fullId},${item.filePath},${item.lineNumber},${item.level},${item.scope},${item.semantic},${item.hash},${item.version}\n`;
     });
   });
 
@@ -548,8 +572,8 @@ const calculator = new LevenshteinDistance();
 
 // 4. 距離行列を作成
 const matrix = createDistanceMatrix(
-  ids.map(id => id.fullId),
-  calculator
+  ids.map((id) => id.fullId),
+  calculator,
 );
 
 // 5. クラスタリングアルゴリズムを選択
@@ -567,7 +591,11 @@ console.log(clusters);
 ### search/similarity.ts
 
 ```typescript
-import type { TraceabilityId, SimilarityItem, SimilaritySearchResult } from "../core/types.ts";
+import type {
+  SimilarityItem,
+  SimilaritySearchResult,
+  TraceabilityId,
+} from "../core/types.ts";
 import type { DistanceCalculator } from "../distance/calculator.ts";
 
 /**
@@ -582,10 +610,10 @@ export function searchSimilar(
   query: string,
   ids: TraceabilityId[],
   calculator: DistanceCalculator,
-  options?: { top?: number }
+  options?: { top?: number },
 ): SimilaritySearchResult {
   // 1. 各IDとクエリの距離を計算
-  const items: SimilarityItem[] = ids.map(id => ({
+  const items: SimilarityItem[] = ids.map((id) => ({
     id,
     distance: calculator.calculate(query, id.fullId),
   }));
@@ -594,9 +622,7 @@ export function searchSimilar(
   items.sort((a, b) => a.distance - b.distance);
 
   // 3. 上位N件に絞る（オプション）
-  const filteredItems = options?.top
-    ? items.slice(0, options.top)
-    : items;
+  const filteredItems = options?.top ? items.slice(0, options.top) : items;
 
   return {
     query,
@@ -613,11 +639,11 @@ export function searchSimilar(
  */
 export function searchByKeyword(
   query: string,
-  ids: TraceabilityId[]
+  ids: TraceabilityId[],
 ): TraceabilityId[] {
   const lowerQuery = query.toLowerCase();
 
-  return ids.filter(id =>
+  return ids.filter((id) =>
     id.fullId.toLowerCase().includes(lowerQuery) ||
     id.semantic.toLowerCase().includes(lowerQuery) ||
     id.scope.toLowerCase().includes(lowerQuery)
@@ -642,15 +668,15 @@ export function searchByKeyword(
 async function main() {
   const args = parseArgs(Deno.args, {
     string: [
-      "mode",          // 新規: cluster | search
-      "query",         // 新規: 検索クエリ
-      "top",           // 新規: 上位N件
+      "mode", // 新規: cluster | search
+      "query", // 新規: 検索クエリ
+      "top", // 新規: 上位N件
       "algorithm",
       "distance",
       "format",
       // ...
     ],
-    boolean: ["help", "show-distance"],  // 新規: 距離表示
+    boolean: ["help", "show-distance"], // 新規: 距離表示
     default: {
       mode: "cluster",
       algorithm: "hierarchical",
@@ -687,11 +713,15 @@ async function runSearchMode(args: any) {
     args.query,
     ids,
     calculator,
-    { top: args.top ? parseInt(args.top) : undefined }
+    { top: args.top ? parseInt(args.top) : undefined },
   );
 
   // 5. 結果を出力
-  const content = formatSearchResult(result, args.format, args["show-distance"]);
+  const content = formatSearchResult(
+    result,
+    args.format,
+    args["show-distance"],
+  );
   await Deno.writeTextFile(outputFile, content);
 }
 ```

@@ -65,7 +65,8 @@ function getClusteringAlgorithm(
  * 使用方法を表示
  */
 function showUsage() {
-  console.log(`Traceability IDs - Extract and cluster traceability IDs from markdown files
+  console.log(
+    `Traceability IDs - Extract and cluster traceability IDs from markdown files
 
 USAGE:
   deno run --allow-read --allow-write src/cli.ts <input-dir> <output-file> [options]
@@ -196,7 +197,8 @@ TRACEABILITY ID FORMAT:
     • version  : Version or date
 
 For more information, see: https://github.com/your-repo/traceability-ids
-`);
+`,
+  );
 }
 
 /**
@@ -323,13 +325,20 @@ async function runClusterMode(
     console.log(`Writing results to: ${outputFile}`);
     const content = formatResult(
       result,
-      args.format as "json" | "markdown" | "csv" | "simple" | "simple-clustered",
+      args.format as
+        | "json"
+        | "markdown"
+        | "csv"
+        | "simple"
+        | "simple-clustered",
     );
     await Deno.writeTextFile(outputFile, content);
 
     console.log("Done!");
   } catch (error) {
-    console.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
+    console.error(
+      `Error: ${error instanceof Error ? error.message : String(error)}`,
+    );
     Deno.exit(1);
   }
 }
@@ -399,7 +408,9 @@ async function runSearchMode(
 
     console.log("Done!");
   } catch (error) {
-    console.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
+    console.error(
+      `Error: ${error instanceof Error ? error.message : String(error)}`,
+    );
     Deno.exit(1);
   }
 }
