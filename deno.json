@@ -1,0 +1,19 @@
+{
+  "name": "@tettuan/traceability-ids",
+  "version": "1.0.0",
+  "exports": "./src/mod.ts",
+  "tasks": {
+    "dev": "deno run --allow-read --allow-write src/cli.ts",
+    "test": "deno test --allow-read --allow-write",
+    "example": "deno run --allow-read --allow-write src/cli.ts ./data ./tmp/clusters.json",
+    "ci": "deno run -A jsr:@aidevtool/ci"
+  },
+  "imports": {
+    "@std/cli": "jsr:@std/cli@^1.0.9",
+    "@std/fs": "jsr:@std/fs@^1.0.8"
+  },
+  "exclude": [
+    "data/",
+    "tmp/"
+  ]
+}

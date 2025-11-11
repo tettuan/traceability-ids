@@ -43,6 +43,76 @@
 - クラスタ内での並び順を決定
 - ソート方法は実装時に決定
 
+### 5. 類似度検索（Similarity Search）
+
+**新機能要求**: 特定のキーワードやIDを基準として、それに近いIDを距離順に並べる。
+
+#### ユースケース
+
+- 「security に関連するIDを探したい」
+- 「特定のID `req:apikey:encryption-6d3a9c#20251111a` に類似するIDを見つけたい」
+- 類似度の高い順にソートされたID一覧を取得
+
+#### 機能仕様
+
+1. **クエリの指定**
+   - 完全なID文字列（例：`req:apikey:security-4f7b2e#20251111a`）
+   - 部分文字列やキーワード（例：`security`）
+   - semantic部分のみ（例：`encryption`）
+
+2. **距離計算**
+   - 抽出された全IDとクエリ文字列との距離を計算
+   - 指定された距離計算手法を使用（levenshtein, structural等）
+
+3. **ソートと出力**
+   - 距離の近い順（類似度の高い順）にソート
+   - オプションで上位N件のみ出力可能
+   - 距離スコアも併せて出力
+
+#### 出力例
+
+```
+# Query: security
+# Distance calculator: structural
+# Top 10 results
+
+req:apikey:security-4f7b2e#20251111a (distance: 0.000)
+req:apikey:encryption-6d3a9c#20251111a (distance: 0.245)
+req:apikey:deletion-4e7c2d#20251111a (distance: 0.312)
+req:apikey:compliance-5a8d4b#20251111a (distance: 0.398)
+...
+```
+
+#### CLI インターフェース案
+
+```bash
+# 完全なIDから類似検索
+deno run --allow-read --allow-write src/cli.ts ./data ./output/similar.txt \
+  --mode search \
+  --query "req:apikey:security-4f7b2e#20251111a" \
+  --top 10
+
+# キーワードから検索（semantic部分にマッチするIDを探す）
+deno run --allow-read --allow-write src/cli.ts ./data ./output/similar.txt \
+  --mode search \
+  --query "security" \
+  --distance structural \
+  --top 20
+
+# 距離スコア付きで全件出力
+deno run --allow-read --allow-write src/cli.ts ./data ./output/similar.txt \
+  --mode search \
+  --query "encryption" \
+  --show-distance
+```
+
+#### 技術的検討
+
+- クラスタリングとは異なるモード（`--mode cluster` / `--mode search`）
+- 既存の距離計算機能を再利用
+- 1対多の距離計算（クエリ vs 全ID）
+- ソートアルゴリズム: 単純な距離順ソート
+
 ## 出力形式
 
 クラスタリングされた結果を出力する。

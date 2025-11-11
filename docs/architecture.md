@@ -23,6 +23,11 @@ src/
 │   ├── hierarchical.ts       # 階層的クラスタリング
 │   ├── kmeans.ts             # K-Means
 │   └── dbscan.ts             # DBSCAN
+├── search/                   # 類似度検索（新機能）
+│   └── similarity.ts         # 類似度検索実装
+├── formatter/
+│   ├── formatter.ts          # 出力フォーマッター
+│   └── simple.ts             # シンプル形式
 ├── cli.ts                    # CLIエントリポイント
 └── mod.ts                    # ライブラリエントリポイント
 ```
@@ -32,7 +37,11 @@ src/
 ### 基本使用法
 
 ```bash
+# クラスタリングモード（デフォルト）
 deno run --allow-read --allow-write src/cli.ts <input-dir> <output-file> [options]
+
+# 類似度検索モード（新機能）
+deno run --allow-read --allow-write src/cli.ts <input-dir> <output-file> --mode search --query <query-string> [options]
 ```
 
 ### 必須引数
@@ -42,15 +51,14 @@ deno run --allow-read --allow-write src/cli.ts <input-dir> <output-file> [option
    - 相対パスまたは絶対パス
 
 2. **`<output-file>`** - 出力先ファイルパス
-   - クラスタリング結果を出力するファイル
+   - クラスタリング結果または検索結果を出力するファイル
    - 形式: JSON, Markdown, CSV など（オプションで指定）
 
-### オプション引数
+### オプション引数（共通）
 
-- **`--algorithm <name>`** - クラスタリングアルゴリズム（デフォルト: hierarchical）
-  - `hierarchical` - 階層的クラスタリング
-  - `kmeans` - K-Means
-  - `dbscan` - DBSCAN
+- **`--mode <mode>`** - 実行モード（デフォルト: cluster）
+  - `cluster` - クラスタリングモード
+  - `search` - 類似度検索モード（新機能）
 
 - **`--distance <name>`** - 距離計算手法（デフォルト: levenshtein）
   - `levenshtein` - レーベンシュタイン距離
@@ -58,39 +66,91 @@ deno run --allow-read --allow-write src/cli.ts <input-dir> <output-file> [option
   - `cosine` - コサイン類似度
   - `structural` - 構造的類似度
 
-- **`--format <format>`** - 出力形式（デフォルト: json）
+- **`--format <format>`** - 出力形式（デフォルト: simple）
+  - `simple` - シンプルなID一覧
+  - `simple-clustered` - クラスタ区切り付きID一覧
   - `json` - JSON形式
   - `markdown` - Markdown形式
   - `csv` - CSV形式
 
-- **`--threshold <number>`** - 階層的クラスタリングの閾値（デフォルト: 0.5）
+### オプション引数（クラスタリングモード）
 
-- **`--k <number>`** - K-Meansのクラスタ数（デフォルト: 自動推定）
+- **`--algorithm <name>`** - クラスタリングアルゴリズム（デフォルト: hierarchical）
+  - `hierarchical` - 階層的クラスタリング
+  - `kmeans` - K-Means
+  - `dbscan` - DBSCAN
+
+- **`--threshold <number>`** - 階層的クラスタリングの閾値（デフォルト: 10）
+
+- **`--k <number>`** - K-Meansのクラスタ数（デフォルト: 0 = 自動推定）
 
 - **`--epsilon <number>`** - DBSCANの近傍半径（デフォルト: 0.3）
 
 - **`--min-points <number>`** - DBSCANの最小ポイント数（デフォルト: 2）
 
+### オプション引数（類似度検索モード）
+
+- **`--query <string>`** - 検索クエリ（必須）
+  - 完全なID文字列（例: `req:apikey:security-4f7b2e#20251111a`）
+  - キーワード（例: `security`）
+  - semantic部分（例: `encryption`）
+
+- **`--top <number>`** - 上位N件のみ出力（デフォルト: 全件）
+
+- **`--show-distance`** - 距離スコアを併せて出力（デフォルト: false）
+
 ### 使用例
 
+#### クラスタリングモード
+
 ```bash
-# 基本的な使用
-deno run --allow-read --allow-write src/cli.ts ./data ./output/clusters.json
+# 基本的な使用（デフォルトモード）
+deno run --allow-read --allow-write src/cli.ts ./data ./output/ids.txt
 
 # アルゴリズムと距離計算手法を指定
-deno run --allow-read --allow-write src/cli.ts ./data ./output/clusters.json \
+deno run --allow-read --allow-write src/cli.ts ./data ./output/ids.txt \
   --algorithm hierarchical \
-  --distance levenshtein \
-  --threshold 0.7
+  --distance structural \
+  --threshold 0.3
 
 # K-Meansを使用
-deno run --allow-read --allow-write src/cli.ts ./data ./output/clusters.json \
+deno run --allow-read --allow-write src/cli.ts ./data ./output/ids.txt \
   --algorithm kmeans \
   --k 5
 
-# Markdown形式で出力
-deno run --allow-read --allow-write src/cli.ts ./data ./output/clusters.md \
-  --format markdown
+# クラスタ区切り付きで出力
+deno run --allow-read --allow-write src/cli.ts ./data ./output/ids.txt \
+  --format simple-clustered
+```
+
+#### 類似度検索モード（新機能）
+
+```bash
+# キーワード検索 - "security" に関連するID
+deno run --allow-read --allow-write src/cli.ts ./data ./output/similar.txt \
+  --mode search \
+  --query "security" \
+  --distance structural \
+  --top 10
+
+# 完全なIDから類似検索
+deno run --allow-read --allow-write src/cli.ts ./data ./output/similar.txt \
+  --mode search \
+  --query "req:apikey:encryption-6d3a9c#20251111a" \
+  --top 20
+
+# 距離スコア付きで全件出力
+deno run --allow-read --allow-write src/cli.ts ./data ./output/similar.txt \
+  --mode search \
+  --query "security" \
+  --show-distance
+
+# JSON形式で詳細データ
+deno run --allow-read --allow-write src/cli.ts ./data ./output/similar.json \
+  --mode search \
+  --query "encryption" \
+  --format json \
+  --top 15
 ```
 
 ## 型定義
@@ -140,6 +200,28 @@ export interface ClusteringResult {
   clusters: Cluster[];
   /** 使用したアルゴリズム名 */
   algorithm: string;
+  /** 使用した距離計算手法 */
+  distanceCalculator: string;
+}
+
+/**
+ * 類似度検索の1件の結果（新機能）
+ */
+export interface SimilarityItem {
+  /** ID情報 */
+  id: TraceabilityId;
+  /** クエリとの距離スコア */
+  distance: number;
+}
+
+/**
+ * 類似度検索結果（新機能）
+ */
+export interface SimilaritySearchResult {
+  /** 検索クエリ */
+  query: string;
+  /** 類似度順にソートされたID配列 */
+  items: SimilarityItem[];
   /** 使用した距離計算手法 */
   distanceCalculator: string;
 }
@@ -480,6 +562,140 @@ const clusters = algorithm.cluster(ids, matrix);
 console.log(clusters);
 ```
 
+## 類似度検索の実装（新機能）
+
+### search/similarity.ts
+
+```typescript
+import type { TraceabilityId, SimilarityItem, SimilaritySearchResult } from "../core/types.ts";
+import type { DistanceCalculator } from "../distance/calculator.ts";
+
+/**
+ * 類似度検索を実行
+ * @param query 検索クエリ文字列
+ * @param ids 検索対象のID配列
+ * @param calculator 距離計算器
+ * @param options オプション（top: 上位N件, showDistance: 距離表示）
+ * @returns 類似度順にソートされた結果
+ */
+export function searchSimilar(
+  query: string,
+  ids: TraceabilityId[],
+  calculator: DistanceCalculator,
+  options?: { top?: number }
+): SimilaritySearchResult {
+  // 1. 各IDとクエリの距離を計算
+  const items: SimilarityItem[] = ids.map(id => ({
+    id,
+    distance: calculator.calculate(query, id.fullId),
+  }));
+
+  // 2. 距離でソート（昇順 = 近い順）
+  items.sort((a, b) => a.distance - b.distance);
+
+  // 3. 上位N件に絞る（オプション）
+  const filteredItems = options?.top
+    ? items.slice(0, options.top)
+    : items;
+
+  return {
+    query,
+    items: filteredItems,
+    distanceCalculator: calculator.name,
+  };
+}
+
+/**
+ * クエリがIDの一部（semantic等）にマッチするか検索
+ * @param query 検索キーワード
+ * @param ids 検索対象のID配列
+ * @returns マッチしたID配列
+ */
+export function searchByKeyword(
+  query: string,
+  ids: TraceabilityId[]
+): TraceabilityId[] {
+  const lowerQuery = query.toLowerCase();
+
+  return ids.filter(id =>
+    id.fullId.toLowerCase().includes(lowerQuery) ||
+    id.semantic.toLowerCase().includes(lowerQuery) ||
+    id.scope.toLowerCase().includes(lowerQuery)
+  );
+}
+```
+
+### 処理フロー（類似度検索モード）
+
+1. **ファイルスキャン** - 通常のクラスタリングと同じ
+2. **ID抽出** - 通常のクラスタリングと同じ
+3. **距離計算** - クエリ vs 全ID（1対多）
+4. **ソート** - 距離の昇順（近い順）
+5. **フィルタリング** - 上位N件（オプション）
+6. **出力** - simple形式 or JSON形式
+
+### CLI実装の変更点
+
+```typescript
+// src/cli.ts に追加
+
+async function main() {
+  const args = parseArgs(Deno.args, {
+    string: [
+      "mode",          // 新規: cluster | search
+      "query",         // 新規: 検索クエリ
+      "top",           // 新規: 上位N件
+      "algorithm",
+      "distance",
+      "format",
+      // ...
+    ],
+    boolean: ["help", "show-distance"],  // 新規: 距離表示
+    default: {
+      mode: "cluster",
+      algorithm: "hierarchical",
+      distance: "levenshtein",
+      format: "simple",
+      // ...
+    },
+  });
+
+  // モード判定
+  if (args.mode === "search") {
+    // 類似度検索モード
+    if (!args.query) {
+      console.error("Error: --query is required in search mode");
+      Deno.exit(1);
+    }
+    await runSearchMode(args);
+  } else {
+    // クラスタリングモード
+    await runClusterMode(args);
+  }
+}
+
+async function runSearchMode(args: any) {
+  // 1-2. ファイルスキャン & ID抽出（同じ）
+  const files = await scanFiles(inputDir);
+  const ids = await extractIds(files);
+
+  // 3. 距離計算器を選択
+  const calculator = getDistanceCalculator(args.distance);
+
+  // 4. 類似度検索を実行
+  const result = searchSimilar(
+    args.query,
+    ids,
+    calculator,
+    { top: args.top ? parseInt(args.top) : undefined }
+  );
+
+  // 5. 結果を出力
+  const content = formatSearchResult(result, args.format, args["show-distance"]);
+  await Deno.writeTextFile(outputFile, content);
+}
+```
+
 ## 拡張性
 
 新しいアルゴリズムや距離計算手法を追加する場合：
@@ -489,3 +705,5 @@ console.log(clusters);
 3. `mod.ts` でエクスポート
 
 インターフェースを守れば、既存コードの変更なしに追加可能。
+
+類似度検索機能は既存のクラスタリング機能とは独立したモードとして実装されるため、相互に影響しない。
