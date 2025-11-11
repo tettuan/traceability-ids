@@ -4,8 +4,8 @@ A tool for extracting and clustering traceability IDs from markdown files based 
 
 トレーサビリティIDを抽出し、類似度に基づいてクラスタリングするツール
 
-[![JSR](https://jsr.io/badges/@scope/traceability-ids)](https://jsr.io/@scope/traceability-ids)
-[![JSR Score](https://jsr.io/badges/@scope/traceability-ids/score)](https://jsr.io/@scope/traceability-ids)
+[![JSR](https://jsr.io/badges/@aidevtool/traceability-ids)](https://jsr.io/@aidevtool/traceability-ids)
+[![JSR Score](https://jsr.io/badges/@aidevtool/traceability-ids/score)](https://jsr.io/@aidevtool/traceability-ids)
 
 ---
 
@@ -264,10 +264,10 @@ deno run --allow-read --allow-write src/cli.ts ./data ./output/ids.txt \
 
 ```bash
 # Using JSR (recommended)
-deno add @scope/traceability-ids
+deno add @aidevtool/traceability-ids
 
 # Or import directly
-import { ... } from "jsr:@scope/traceability-ids";
+import { ... } from "jsr:@aidevtool/traceability-ids";
 ```
 
 ### Quick Start / クイックスタート
@@ -280,7 +280,7 @@ import {
   HierarchicalClustering,
   createDistanceMatrix,
   formatAsSimple,
-} from "@scope/traceability-ids";
+} from "@aidevtool/traceability-ids";
 
 // 1. Scan markdown files / ファイルをスキャン
 const files = await scanFiles("./docs");
@@ -317,7 +317,7 @@ import {
   StructuralDistance,
   HierarchicalClustering,
   createDistanceMatrix,
-} from "@scope/traceability-ids";
+} from "@aidevtool/traceability-ids";
 
 const files = await scanFiles("./docs");
 const ids = await extractIds(files);
@@ -348,7 +348,7 @@ import {
   searchSimilar,
   StructuralDistance,
   formatSearchResult,
-} from "@scope/traceability-ids";
+} from "@aidevtool/traceability-ids";
 
 const files = await scanFiles("./docs");
 const ids = await extractIds(files);
@@ -377,7 +377,7 @@ import {
   scanFiles,
   extractIds,
   searchByKeyword,
-} from "@scope/traceability-ids";
+} from "@aidevtool/traceability-ids";
 
 const files = await scanFiles("./docs");
 const ids = await extractIds(files);
@@ -395,7 +395,7 @@ matches.forEach(id => {
 #### Custom Distance Calculator / カスタム距離計算器
 
 ```typescript
-import type { DistanceCalculator } from "@scope/traceability-ids";
+import type { DistanceCalculator } from "@aidevtool/traceability-ids";
 
 class CustomDistance implements DistanceCalculator {
   readonly name = "custom";
@@ -414,9 +414,9 @@ const calculator = new CustomDistance();
 
 ### API Reference / API リファレンス
 
-For complete API documentation, see the [JSR documentation](https://jsr.io/@scope/traceability-ids).
+For complete API documentation, see the [JSR documentation](https://jsr.io/@aidevtool/traceability-ids).
 
-完全なAPIドキュメントは[JSRドキュメント](https://jsr.io/@scope/traceability-ids)を参照してください。
+完全なAPIドキュメントは[JSRドキュメント](https://jsr.io/@aidevtool/traceability-ids)を参照してください。
 
 ## 開発状況
 

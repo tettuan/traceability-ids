@@ -15,7 +15,7 @@
  *   LevenshteinDistance,
  *   HierarchicalClustering,
  *   createDistanceMatrix,
- * } from "@scope/traceability-ids";
+ * } from "@aidevtool/traceability-ids";
  *
  * // Scan markdown files
  * const files = await scanFiles("./docs");

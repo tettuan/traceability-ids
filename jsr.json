@@ -1,5 +1,5 @@
 {
-  "name": "@tettuan/traceability-ids",
+  "name": "@aidevtool/traceability-ids",
   "version": "0.0.1",
   "exports": "./src/mod.ts",
   "publish": {
