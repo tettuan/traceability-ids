@@ -7,32 +7,7 @@
  */
 
 import { parseArgs } from "jsr:@std/cli@^1.0.9/parse-args";
-import { scanFiles } from "./src/core/scanner.ts";
-import { deduplicateIds, extractIds } from "./src/core/extractor.ts";
-import { LevenshteinDistance } from "./src/distance/levenshtein.ts";
-import { JaroWinklerDistance } from "./src/distance/jaro_winkler.ts";
-import { CosineDistance } from "./src/distance/cosine.ts";
-import { StructuralDistance } from "./src/distance/structural.ts";
-import { formatSearchResult } from "./src/formatter/formatter.ts";
-import { searchSimilar } from "./src/search/similarity.ts";
-import type { DistanceCalculator } from "./src/distance/calculator.ts";
-
-function getDistanceCalculator(name: string): DistanceCalculator {
-  switch (name) {
-    case "levenshtein":
-      return new LevenshteinDistance();
-    case "jaro-winkler":
-      return new JaroWinklerDistance();
-    case "cosine":
-      return new CosineDistance();
-    case "structural":
-      return new StructuralDistance();
-    default:
-      throw new Error(
-        `Unknown distance calculator: ${name}. Available: levenshtein, jaro-winkler, cosine, structural`,
-      );
-  }
-}
+import { runSearchMode } from "./src/modes/search.ts";
 
 async function main() {
   const args = parseArgs(Deno.args, {
@@ -72,48 +47,16 @@ EXAMPLE:
     Deno.exit(args.help ? 0 : 1);
   }
 
-  const inputDir = String(args._[0]);
-  const outputFile = String(args._[1]);
-
   try {
-    console.log(`Search mode`);
-    console.log(`Query: ${args.query}`);
-    console.log(`Distance calculator: ${args.distance}`);
-
-    const calculator: DistanceCalculator = getDistanceCalculator(args.distance);
-
-    const files = await scanFiles(inputDir);
-    console.log(`Found ${files.length} markdown files`);
-
-    const allIds = await extractIds(files);
-    console.log(`Extracted ${allIds.length} IDs (with duplicates)`);
-
-    const ids = deduplicateIds(allIds);
-    console.log(`Deduplicated to ${ids.length} unique IDs`);
-
-    if (ids.length === 0) {
-      console.warn("No traceability IDs found");
-      Deno.exit(0);
-    }
-
-    console.log("Searching for similar IDs...");
-    const result = searchSimilar(
-      args.query,
-      ids,
-      calculator,
-      { top: args.top ? parseInt(args.top) : undefined },
-    );
-    console.log(`Found ${result.items.length} results`);
-
-    console.log(`Writing results to: ${outputFile}`);
-    const content = formatSearchResult(
-      result,
-      args.format as "json" | "markdown" | "csv" | "simple",
-      args["show-distance"] === true,
-    );
-    await Deno.writeTextFile(outputFile, content);
-
-    console.log("Done!");
+    await runSearchMode({
+      inputDir: String(args._[0]),
+      outputFile: String(args._[1]),
+      query: args.query,
+      distance: args.distance,
+      top: args.top ? parseInt(args.top) : undefined,
+      showDistance: args["show-distance"] === true,
+      format: args.format as "json" | "markdown" | "csv" | "simple",
+    });
   } catch (error) {
     console.error(
       `Error: ${error instanceof Error ? error.message : String(error)}`,

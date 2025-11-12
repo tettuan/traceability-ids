@@ -7,12 +7,7 @@
  */
 
 import { parseArgs } from "jsr:@std/cli@^1.0.9/parse-args";
-import { scanFiles } from "./src/core/scanner.ts";
-import { extractIds } from "./src/core/extractor.ts";
-import { extractContext } from "./src/extract/context.ts";
-import { loadIds } from "./src/extract/loader.ts";
-import { formatContextResult } from "./src/formatter/formatter.ts";
-import type { ContextExtractionRequest } from "./src/core/types.ts";
+import { runExtractMode } from "./src/modes/extract.ts";
 
 async function main() {
   const args = parseArgs(Deno.args, {
@@ -58,54 +53,22 @@ EXAMPLES:
     Deno.exit(args.help ? 0 : 1);
   }
 
-  const inputDir = String(args._[0]);
-  const outputFile = String(args._[1]);
-
   try {
-    console.log(`Extract mode`);
-
     const idsSource = args.ids || args["ids-file"];
     if (!idsSource) {
       console.error("Error: Either --ids or --ids-file is required");
       Deno.exit(1);
     }
-    const targetIds = await loadIds(
+
+    await runExtractMode({
+      inputDir: String(args._[0]),
+      outputFile: String(args._[1]),
       idsSource,
-      Boolean(args["ids-file"]),
-    );
-    console.log(`Target IDs: ${targetIds.length}`);
-
-    console.log(`Scanning files in: ${inputDir}`);
-    const files = await scanFiles(inputDir);
-    console.log(`Found ${files.length} markdown files`);
-
-    console.log("Extracting traceability IDs...");
-    const ids = await extractIds(files);
-    console.log(`Extracted ${ids.length} IDs`);
-
-    if (ids.length === 0) {
-      console.warn("No traceability IDs found");
-      Deno.exit(0);
-    }
-
-    console.log("Extracting context...");
-    const request: ContextExtractionRequest = {
-      ids: targetIds,
+      isFile: Boolean(args["ids-file"]),
       before: parseInt(args.before),
       after: parseInt(args.after),
-    };
-    const result = await extractContext(request, ids);
-    console.log(`Found ${result.contexts.length} IDs`);
-    console.log(`Not found: ${result.notFound.length} IDs`);
-
-    console.log(`Writing results to: ${outputFile}`);
-    const content = formatContextResult(
-      result,
-      args.format as "json" | "markdown" | "simple",
-    );
-    await Deno.writeTextFile(outputFile, content);
-
-    console.log("Done!");
+      format: args.format as "json" | "markdown" | "simple",
+    });
   } catch (error) {
     console.error(
       `Error: ${error instanceof Error ? error.message : String(error)}`,
