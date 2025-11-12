@@ -1,0 +1,64 @@
+{
+  "timestamp": "2025-11-12T21:42:01.325Z",
+  "inputDir": "./data",
+  "summary": {
+    "files": 10,
+    "totalIds": 120,
+    "uniqueIds": 35,
+    "clusters": 13,
+    "totalTimeMs": 17.463624999999993
+  },
+  "results": [
+    {
+      "name": "File scan",
+      "timeMs": 0.19500000000000028,
+      "details": {
+        "files": 10
+      }
+    },
+    {
+      "name": "ID extraction",
+      "timeMs": 1.7907499999999992,
+      "details": {
+        "ids": 120
+      }
+    },
+    {
+      "name": "Deduplication",
+      "timeMs": 0.02870799999999818,
+      "details": {
+        "unique": 35,
+        "duplicates": 85
+      }
+    },
+    {
+      "name": "Distance matrix (structural)",
+      "timeMs": 6.136125,
+      "details": {
+        "size": "35x35",
+        "calculations": 595
+      }
+    },
+    {
+      "name": "Distance matrix (cosine)",
+      "timeMs": 7.998125000000002,
+      "details": {
+        "size": "35x35",
+        "calculations": 595
+      }
+    },
+    {
+      "name": "Clustering",
+      "timeMs": 1.3149169999999941,
+      "details": {
+        "clusters": 13
+      }
+    }
+  ],
+  "memory": {
+    "rss": 70942720,
+    "heapTotal": 12320768,
+    "heapUsed": 8320968,
+    "external": 3172979
+  }
+}
