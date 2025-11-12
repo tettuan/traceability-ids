@@ -1,5 +1,7 @@
 import type {
   ClusteringResult,
+  ContextExtractionResult,
+  ExtractedContext,
   SimilaritySearchResult,
 } from "../core/types.ts";
 import { formatAsSimple, formatAsSimpleWithClusters } from "./simple.ts";
@@ -211,5 +213,116 @@ export function formatSearchResult(
       return formatSearchResultAsSimple(result, showDistance);
     default:
       throw new Error(`Unknown format: ${format}`);
+  }
+}
+
+/**
+ * コンテキスト抽出結果をMarkdown形式でフォーマット
+ * @param result コンテキスト抽出結果
+ * @returns Markdown文字列
+ */
+export function formatContextAsMarkdown(
+  result: ContextExtractionResult,
+): string {
+  let md = `# Context Extraction Results\n\n`;
+  md += `- Before lines: ${result.request.before}\n`;
+  md += `- After lines: ${result.request.after}\n`;
+  md += `- Total IDs requested: ${result.request.ids.length}\n`;
+  md += `- Found: ${result.contexts.length}\n`;
+  md += `- Not found: ${result.notFound.length}\n\n`;
+
+  // Not found IDs
+  if (result.notFound.length > 0) {
+    md += `## Not Found\n\n`;
+    result.notFound.forEach((id) => {
+      md += `- ${id}\n`;
+    });
+    md += `\n`;
+  }
+
+  // Each ID's context
+  result.contexts.forEach((context) => {
+    md += formatExtractedContextAsMarkdown(context);
+  });
+
+  return md;
+}
+
+/**
+ * 単一IDのコンテキストをMarkdown形式でフォーマット
+ * @param context 抽出されたコンテキスト
+ * @returns Markdown文字列
+ */
+function formatExtractedContextAsMarkdown(context: ExtractedContext): string {
+  let md = `## ID: ${context.id}\n\n`;
+
+  context.locations.forEach((location) => {
+    md += `### Location: ${location.filePath}:${location.lineNumber}\n\n`;
+    md += "```\n";
+
+    // Before lines
+    location.beforeLines.forEach((line) => {
+      md += `${line.lineNumber}: ${line.content}\n`;
+    });
+
+    // Target line (highlighted)
+    md += `>>> ${location.lineNumber}: ${location.targetLine}\n`;
+
+    // After lines
+    location.afterLines.forEach((line) => {
+      md += `${line.lineNumber}: ${line.content}\n`;
+    });
+
+    md += "```\n\n";
+  });
+
+  return md;
+}
+
+/**
+ * コンテキスト抽出結果をJSON形式でフォーマット
+ * @param result コンテキスト抽出結果
+ * @returns JSON文字列
+ */
+export function formatContextAsJson(result: ContextExtractionResult): string {
+  return JSON.stringify(result, null, 2);
+}
+
+/**
+ * コンテキスト抽出結果をシンプル形式でフォーマット
+ * @param result コンテキスト抽出結果
+ * @returns シンプルな文字列
+ */
+export function formatContextAsSimple(result: ContextExtractionResult): string {
+  let text = "";
+
+  result.contexts.forEach((context) => {
+    context.locations.forEach((location) => {
+      text += `${location.filePath}:${location.lineNumber}: ${context.id}\n`;
+    });
+  });
+
+  return text;
+}
+
+/**
+ * コンテキスト抽出結果を指定された形式でフォーマット
+ * @param result コンテキスト抽出結果
+ * @param format 出力形式
+ * @returns フォーマット済み文字列
+ */
+export function formatContextResult(
+  result: ContextExtractionResult,
+  format: "json" | "markdown" | "simple",
+): string {
+  switch (format) {
+    case "json":
+      return formatContextAsJson(result);
+    case "markdown":
+      return formatContextAsMarkdown(result);
+    case "simple":
+      return formatContextAsSimple(result);
+    default:
+      return formatContextAsMarkdown(result);
   }
 }

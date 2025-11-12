@@ -126,3 +126,90 @@ export interface SimilaritySearchResult {
   /** Name of the distance calculator used */
   distanceCalculator: string;
 }
+
+/**
+ * Context extraction request parameters
+ *
+ * @example
+ * ```ts
+ * const request: ContextExtractionRequest = {
+ *   ids: ["req:apikey:security-4f7b2e#20251111a"],
+ *   before: 3,
+ *   after: 10
+ * };
+ * ```
+ */
+export interface ContextExtractionRequest {
+  /** IDs to extract context for */
+  ids: string[];
+  /** Number of lines to include before the target line (max: 50) */
+  before: number;
+  /** Number of lines to include after the target line (max: 50) */
+  after: number;
+}
+
+/**
+ * Context information for a single location
+ *
+ * @example
+ * ```ts
+ * const location: LocationContext = {
+ *   filePath: "/path/to/file.md",
+ *   lineNumber: 42,
+ *   targetLine: "[req:apikey:security-4f7b2e#20251111a] Security requirement",
+ *   beforeLines: [{ lineNumber: 41, content: "## Requirements" }],
+ *   afterLines: [{ lineNumber: 43, content: "API keys must be encrypted" }]
+ * };
+ * ```
+ */
+export interface LocationContext {
+  /** Absolute path to the file */
+  filePath: string;
+  /** Line number where the ID was found (1-indexed) */
+  lineNumber: number;
+  /** Content of the target line */
+  targetLine: string;
+  /** Lines before the target (oldest to newest) */
+  beforeLines: { lineNumber: number; content: string }[];
+  /** Lines after the target (newest to oldest) */
+  afterLines: { lineNumber: number; content: string }[];
+}
+
+/**
+ * Extracted context for a single ID
+ *
+ * @example
+ * ```ts
+ * const context: ExtractedContext = {
+ *   id: "req:apikey:security-4f7b2e#20251111a",
+ *   locations: [location1, location2]
+ * };
+ * ```
+ */
+export interface ExtractedContext {
+  /** The ID that was searched for */
+  id: string;
+  /** All locations where this ID was found */
+  locations: LocationContext[];
+}
+
+/**
+ * Complete result of context extraction
+ *
+ * @example
+ * ```ts
+ * const result: ContextExtractionResult = {
+ *   request: { ids: ["req:apikey:security-4f7b2e#20251111a"], before: 3, after: 10 },
+ *   contexts: [extractedContext],
+ *   notFound: []
+ * };
+ * ```
+ */
+export interface ContextExtractionResult {
+  /** The original request parameters */
+  request: ContextExtractionRequest;
+  /** Successfully extracted contexts */
+  contexts: ExtractedContext[];
+  /** IDs that were not found in any file */
+  notFound: string[];
+}

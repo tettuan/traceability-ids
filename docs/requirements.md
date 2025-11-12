@@ -46,13 +46,19 @@
 
 ### 5. 類似度検索（Similarity Search）
 
-**新機能要求**: 特定のキーワードやIDを基準として、それに近いIDを距離順に並べる。
+**既存機能**:
+特定のキーワードやIDを基準として、それに**類似した**IDを距離計算で探し、距離順に並べる。
+
+**重要**:
+このモードは実際のファイル検索（grep）ではなく、ID文字列間の距離計算による類似度検索です。
 
 #### ユースケース
 
-- 「security に関連するIDを探したい」
-- 「特定のID `req:apikey:encryption-6d3a9c#20251111a` に類似するIDを見つけたい」
-- 類似度の高い順にソートされたID一覧を取得
+- 「"security"
+  という文字列に類似したIDを探したい」（文字列マッチングではなく、距離計算）
+- 「特定のID `req:apikey:encryption-6d3a9c#20251111a`
+  に類似する構造のIDを見つけたい」
+- 類似度の高い順にソートされたID一覧を取得（ファイル内容は返さない）
 
 #### 機能仕様
 
@@ -113,6 +119,234 @@ deno run --allow-read --allow-write src/cli.ts ./data ./output/similar.txt \
 - 既存の距離計算機能を再利用
 - 1対多の距離計算（クエリ vs 全ID）
 - ソートアルゴリズム: 単純な距離順ソート
+
+#### デフォルト設定の最適化
+
+実データでのテスト結果に基づき、各モードに最適な距離計算方法を選定：
+
+**クラスタリングモード（cluster）:**
+
+- デフォルト距離計算: `structural`
+- デフォルトthreshold: `0.3`
+- 理由: ID構造（level, scope等）を考慮してscopeごとにグループ化
+- 結果: 120 IDsを13クラスタにグループ化（scopeベースで適切に分類）
+
+**類似度検索モード（search）:**
+
+- デフォルト距離計算: `cosine`
+- 理由: n-gramベースでキーワード検索に強い
+- 例: "apikey"クエリで`req:apikey:api-mgmt`が最上位（distance: 0.543）
+
+これらのデフォルト設定により、ユーザーは距離計算方法を指定せずとも最適な結果が得られる。
+
+### 6. コンテキスト抽出（Context Extraction / Extract Mode）
+
+**新機能要求**:
+指定された複数のIDを使って、実際にファイルから該当箇所をgrep的に検索し、前後の行を含めてコンテキストを抽出する。
+
+**類似度検索（searchモード）との違い**:
+
+- **searchモード**: ID文字列の類似度計算 → 似たIDを見つける → ID一覧を返す
+- **extractモード**: 指定されたIDでファイル検索 → 該当箇所を特定 →
+  前後のテキストを返す
+
+#### ユースケース
+
+- 「特定のID `req:apikey:security-4f7b2e#20251111a`
+  が実際にどこで使われているか、grep的に探したい」
+- 「複数のID（3個や5個）の使用箇所を一括で検索し、前後の文脈を確認したい」
+- 「IDの前後数行を含めてコンテキストを把握したい」（grepの-A、-Bオプションのようなイメージ）
+
+#### 機能仕様
+
+1. **ID指定**
+   - 複数のIDを指定可能（コマンドライン引数、またはファイルから読み込み）
+   - 完全なID文字列のみ（例：`req:apikey:security-4f7b2e#20251111a`）
+   - スペース区切りまたは改行区切りで複数指定
+
+2. **ファイル検索と位置特定**
+   - 指定されたディレクトリ内の *.md ファイルから該当IDを検索
+   - 各IDの出現箇所を特定（ファイルパス、行番号）
+   - 同じIDが複数ファイルに出現する場合はすべて抽出
+
+3. **コンテキスト抽出**
+   - 該当行の前N行、後M行を抽出（N, Mは指定可能）
+   - デフォルト: 前3行、後10行
+   - ファイルの先頭・末尾を超える場合は範囲を調整
+
+4. **出力形式**
+   - IDごとにセクション分け
+   - ファイルパスと行番号を明示
+   - 該当行をハイライト（マーカー付き）
+   - 前後の行番号も表示
+
+#### 出力例
+
+```markdown
+# Context Extraction Results
+
+## ID: req:apikey:security-4f7b2e#20251111a
+
+### Location: /path/to/requirements.md:42
+```
+
+38: ## Security Requirements 39: 40: The API key system must ensure the
+following security measures: 41:
+
+>>> 42: [req:apikey:security-4f7b2e#20251111a] API keys must be encrypted at
+>>> rest 43: 44: All API keys stored in the database must use AES-256
+>>> encryption. 45: The encryption keys must be stored in a separate secure
+>>> vault. 46: 47: ### Key Rotation 48: 49: Keys should be rotated every 90
+>>> days. 50: 51: ### Access Control 52:
+
+```
+### Location: /path/to/design.md:15
+```
+
+12: # Database Schema 13: 14: The api_keys table structure:
+
+>>> 15: - encrypted_key: stores [req:apikey:security-4f7b2e#20251111a] encrypted
+>>> API key 16: - created_at: timestamp 17: - expires_at: timestamp 18: 19: ##
+>>> Encryption Implementation 20: 21: We use the built-in database encryption...
+>>> 22: 23: ## Performance Considerations 24: 25: Index on created_at for
+>>> efficient cleanup queries.
+
+```
+## ID: req:apikey:encryption-6d3a9c#20251111a
+
+### Location: /path/to/requirements.md:89
+```
+
+86: ## Encryption Standards 87: 88: All encryption implementations must follow:
+
+>>> 89: [req:apikey:encryption-6d3a9c#20251111a] Use AES-256-GCM for symmetric
+>>> encryption 90: 91: This ensures both confidentiality and authenticity. 92:
+>>> 93: ### Key Management ...
+
+```
+```
+
+#### CLI インターフェース案
+
+```bash
+# 単一IDのコンテキスト抽出（grep的な使い方）
+deno run --allow-read src/cli.ts ./data ./output/context.md \
+  --mode extract \
+  --ids "req:apikey:security-4f7b2e#20251111a" \
+  --before 3 \
+  --after 10
+
+# 複数ID（スペース区切り）を一括検索
+deno run --allow-read src/cli.ts ./data ./output/context.md \
+  --mode extract \
+  --ids "req:apikey:security-4f7b2e#20251111a req:apikey:encryption-6d3a9c#20251111a" \
+  --before 5 \
+  --after 15
+
+# ファイルからID一覧を読み込んで一括検索
+deno run --allow-read src/cli.ts ./data ./output/context.md \
+  --mode extract \
+  --ids-file ./ids-to-extract.txt \
+  --before 3 \
+  --after 10
+
+# JSON形式で出力
+deno run --allow-read src/cli.ts ./data ./output/context.json \
+  --mode extract \
+  --ids "req:apikey:security-4f7b2e#20251111a" \
+  --format json
+
+# searchモード（類似度検索）と組み合わせて使う例
+# ステップ1: "security"に類似したIDを距離計算で探す
+deno run --allow-read --allow-write src/cli.ts ./data ./tmp/similar-ids.txt \
+  --mode search \
+  --query "security" \
+  --top 5 \
+  --format simple
+
+# ステップ2: 見つかったIDの実際の使用箇所をファイルから検索・抽出
+deno run --allow-read src/cli.ts ./data ./output/context.md \
+  --mode extract \
+  --ids-file ./tmp/similar-ids.txt
+```
+
+#### モードの使い分け
+
+| モード  | 目的               | 入力         | 出力                     | イメージ               |
+| ------- | ------------------ | ------------ | ------------------------ | ---------------------- |
+| cluster | IDをグループ化     | ディレクトリ | クラスタ化されたID一覧   | クラスタリング分析     |
+| search  | 類似IDを探す       | クエリ文字列 | 類似度順のID一覧         | 距離計算による類似検索 |
+| extract | IDの使用箇所を探す | ID一覧       | 該当箇所と前後のテキスト | grep -A -B             |
+
+#### 技術的検討
+
+1. **実装方針**
+   - 既存の `scanFiles()` と `extractIds()` を再利用
+   - 新しいモード: `--mode extract`
+   - IDリストを入力として受け取る
+   - ファイルを再スキャンして該当行の前後を抽出
+
+2. **データ構造**
+   ```typescript
+   interface ContextExtractionRequest {
+     ids: string[]; // 抽出対象のID一覧
+     before: number; // 前N行
+     after: number; // 後M行
+   }
+
+   interface ExtractedContext {
+     id: string;
+     locations: LocationContext[];
+   }
+
+   interface LocationContext {
+     filePath: string;
+     lineNumber: number;
+     targetLine: string; // 該当行
+     beforeLines: string[]; // 前N行
+     afterLines: string[]; // 後M行
+   }
+   ```
+
+3. **処理フロー**
+   - ID一覧を読み込み（引数 or ファイル）
+   - ファイルをスキャン
+   - 各IDについて:
+     - ファイル内を検索
+     - 該当行を特定
+     - 前後N/M行を抽出
+   - 結果を整形して出力
+
+4. **既存機能との統合**
+   - クラスタリング結果から特定クラスタのIDを抽出 → コンテキスト抽出
+   - 類似度検索結果の上位N件 → コンテキスト抽出
+   - パイプライン的な使用を想定
+
+#### セキュリティ考慮事項
+
+- ファイル読み込み権限のみ（書き込み不要）
+- パストラバーサル対策（指定ディレクトリ外のファイルアクセス防止）
+- 大きなファイルに対するメモリ使用量の制限
+
+#### 制約事項
+
+1. **行の最大文字数**
+   - 1行あたり最大300文字（マルチバイト文字を含む）
+   - 300文字を超える行は切り詰める
+
+2. **前後行数の制限**
+   - `--before` の最大値: 50行
+   - `--after` の最大値: 50行
+   - 合計で最大101行（before 50 + target 1 + after 50）
+
+3. **権限要求**
+   - 読み込み権限のみ（`--allow-read`）
+   - 書き込み権限は不要（出力ファイルへの書き込みのみ`--allow-write`が必要だが、ファイルシステムへの変更はなし）
+
+4. **出力の整形**
+   - 連続した空行を削除（2つ以上連続する空行は1つにまとめる）
+   - ファイルの前後の不要な空白を削除
+   - コンテキスト表示の可読性を向上
 
 ## 出力形式
 

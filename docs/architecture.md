@@ -586,7 +586,7 @@ const clusters = algorithm.cluster(ids, matrix);
 console.log(clusters);
 ```
 
-## 類似度検索の実装（新機能）
+## 類似度検索の実装
 
 ### search/similarity.ts
 
@@ -651,6 +651,367 @@ export function searchByKeyword(
 }
 ```
 
+## コンテキスト抽出の実装（Extract Mode - 新機能）
+
+**目的**: 指定されたIDをファイルから検索し、該当箇所の前後行を抽出（grep -A -B
+のようなイメージ）
+
+**類似度検索（Search Mode）との違い**:
+
+- Search Mode: ID間の距離計算 → 類似したIDを探す → ID一覧のみ返す
+- Extract Mode: IDでファイル検索 → 該当行を特定 → 前後のテキストを返す
+
+### モジュール構成の追加
+
+```
+src/
+├── extract/                  # コンテキスト抽出（新規）
+│   ├── context.ts           # ファイル検索とコンテキスト抽出ロジック
+│   └── loader.ts            # ID一覧の読み込み（コマンドライン or ファイル）
+```
+
+### core/types.ts への型追加
+
+```typescript
+/**
+ * コンテキスト抽出リクエスト
+ */
+export interface ContextExtractionRequest {
+  /** 抽出対象のID一覧 */
+  ids: string[];
+  /** 該当行の前に取得する行数 */
+  before: number;
+  /** 該当行の後に取得する行数 */
+  after: number;
+}
+
+/**
+ * 位置ごとのコンテキスト情報
+ */
+export interface LocationContext {
+  /** ファイルパス */
+  filePath: string;
+  /** 行番号（1-indexed） */
+  lineNumber: number;
+  /** 該当行の内容 */
+  targetLine: string;
+  /** 該当行より前の行（配列の順序は古い順） */
+  beforeLines: { lineNumber: number; content: string }[];
+  /** 該当行より後の行（配列の順序は新しい順） */
+  afterLines: { lineNumber: number; content: string }[];
+}
+
+/**
+ * ID ごとの抽出コンテキスト
+ */
+export interface ExtractedContext {
+  /** 対象のID */
+  id: string;
+  /** 該当箇所の配列（複数ファイルに出現する可能性） */
+  locations: LocationContext[];
+}
+
+/**
+ * コンテキスト抽出の全体結果
+ */
+export interface ContextExtractionResult {
+  /** 抽出リクエスト */
+  request: ContextExtractionRequest;
+  /** ID ごとの抽出結果 */
+  contexts: ExtractedContext[];
+  /** 見つからなかったID */
+  notFound: string[];
+}
+```
+
+### extract/context.ts
+
+```typescript
+import type {
+  ContextExtractionRequest,
+  ContextExtractionResult,
+  ExtractedContext,
+  LocationContext,
+  TraceabilityId,
+} from "../core/types.ts";
+
+/**
+ * 指定されたIDのコンテキストを抽出
+ * @param request 抽出リクエスト
+ * @param ids 抽出済みのトレーサビリティID配列
+ * @returns コンテキスト抽出結果
+ */
+export async function extractContext(
+  request: ContextExtractionRequest,
+  ids: TraceabilityId[],
+): Promise<ContextExtractionResult> {
+  const contexts: ExtractedContext[] = [];
+  const notFound: string[] = [];
+
+  // 各IDについて処理
+  for (const targetId of request.ids) {
+    // 該当するIDを検索
+    const matchedIds = ids.filter((id) => id.fullId === targetId);
+
+    if (matchedIds.length === 0) {
+      notFound.push(targetId);
+      continue;
+    }
+
+    // 各出現箇所についてコンテキストを抽出
+    const locations: LocationContext[] = [];
+    for (const matched of matchedIds) {
+      const context = await extractLocationContext(
+        matched.filePath,
+        matched.lineNumber,
+        request.before,
+        request.after,
+      );
+      locations.push(context);
+    }
+
+    contexts.push({
+      id: targetId,
+      locations,
+    });
+  }
+
+  return {
+    request,
+    contexts,
+    notFound,
+  };
+}
+
+/**
+ * 特定のファイル・行番号からコンテキストを抽出
+ * @param filePath ファイルパス
+ * @param lineNumber 対象行番号（1-indexed）
+ * @param before 前N行（最大50）
+ * @param after 後M行（最大50）
+ * @returns 位置コンテキスト
+ */
+async function extractLocationContext(
+  filePath: string,
+  lineNumber: number,
+  before: number,
+  after: number,
+): Promise<LocationContext> {
+  // 制約チェック
+  const MAX_LINES = 50;
+  const MAX_LINE_LENGTH = 300;
+  before = Math.min(before, MAX_LINES);
+  after = Math.min(after, MAX_LINES);
+
+  // ファイル全体を読み込み
+  const content = await Deno.readTextFile(filePath);
+  const lines = content.split("\n");
+
+  // 行番号を配列インデックスに変換（1-indexed → 0-indexed）
+  const targetIndex = lineNumber - 1;
+
+  // 範囲を計算（境界チェック）
+  const startIndex = Math.max(0, targetIndex - before);
+  const endIndex = Math.min(lines.length - 1, targetIndex + after);
+
+  // 前の行を抽出（文字数制限、空行整形）
+  const beforeLines = [];
+  for (let i = startIndex; i < targetIndex; i++) {
+    beforeLines.push({
+      lineNumber: i + 1,
+      content: truncateLine(lines[i], MAX_LINE_LENGTH),
+    });
+  }
+
+  // 該当行（文字数制限）
+  const targetLine = truncateLine(lines[targetIndex], MAX_LINE_LENGTH);
+
+  // 後の行を抽出（文字数制限、空行整形）
+  const afterLines = [];
+  for (let i = targetIndex + 1; i <= endIndex; i++) {
+    afterLines.push({
+      lineNumber: i + 1,
+      content: truncateLine(lines[i], MAX_LINE_LENGTH),
+    });
+  }
+
+  // 連続した空行を削除
+  const cleanedBeforeLines = removeConsecutiveEmptyLines(beforeLines);
+  const cleanedAfterLines = removeConsecutiveEmptyLines(afterLines);
+
+  return {
+    filePath,
+    lineNumber,
+    targetLine,
+    beforeLines: cleanedBeforeLines,
+    afterLines: cleanedAfterLines,
+  };
+}
+
+/**
+ * 行を指定文字数で切り詰める（マルチバイト対応）
+ * @param line 元の行
+ * @param maxLength 最大文字数
+ * @returns 切り詰められた行
+ */
+function truncateLine(line: string, maxLength: number): string {
+  if (line.length <= maxLength) {
+    return line;
+  }
+  return line.substring(0, maxLength) + "...";
+}
+
+/**
+ * 連続した空行を1つにまとめる
+ * @param lines 行配列
+ * @returns 整形された行配列
+ */
+function removeConsecutiveEmptyLines(
+  lines: { lineNumber: number; content: string }[],
+): { lineNumber: number; content: string }[] {
+  const result: { lineNumber: number; content: string }[] = [];
+  let previousWasEmpty = false;
+
+  for (const line of lines) {
+    const isEmpty = line.content.trim() === "";
+
+    if (isEmpty) {
+      if (!previousWasEmpty) {
+        result.push(line);
+        previousWasEmpty = true;
+      }
+      // 連続する空行はスキップ
+    } else {
+      result.push(line);
+      previousWasEmpty = false;
+    }
+  }
+
+  return result;
+}
+```
+
+### extract/loader.ts
+
+```typescript
+/**
+ * ID一覧を読み込む
+ * @param source コマンドライン引数文字列、またはファイルパス
+ * @returns ID配列
+ */
+export async function loadIds(
+  source: string,
+  isFile: boolean,
+): Promise<string[]> {
+  if (isFile) {
+    // ファイルから読み込み
+    const content = await Deno.readTextFile(source);
+    return content
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+  } else {
+    // スペース区切りで分割
+    return source.split(/\s+/).filter((id) => id.length > 0);
+  }
+}
+```
+
+### formatter への追加（context フォーマット）
+
+````typescript
+import type {
+  ContextExtractionResult,
+  ExtractedContext,
+  LocationContext,
+} from "../core/types.ts";
+
+/**
+ * コンテキスト抽出結果を Markdown 形式でフォーマット
+ */
+export function formatContextAsMarkdown(
+  result: ContextExtractionResult,
+): string {
+  let md = "# Context Extraction Results\n\n";
+  md += `- Before lines: ${result.request.before}\n`;
+  md += `- After lines: ${result.request.after}\n`;
+  md += `- Total IDs requested: ${result.request.ids.length}\n`;
+  md += `- Found: ${result.contexts.length}\n`;
+  md += `- Not found: ${result.notFound.length}\n\n`;
+
+  // 見つからなかったIDを表示
+  if (result.notFound.length > 0) {
+    md += "## Not Found\n\n";
+    result.notFound.forEach((id) => {
+      md += `- ${id}\n`;
+    });
+    md += "\n";
+  }
+
+  // 各IDのコンテキストを表示
+  result.contexts.forEach((context) => {
+    md += formatExtractedContextAsMarkdown(context);
+  });
+
+  return md;
+}
+
+/**
+ * 単一IDのコンテキストをMarkdown形式でフォーマット
+ */
+function formatExtractedContextAsMarkdown(context: ExtractedContext): string {
+  let md = `## ID: ${context.id}\n\n`;
+
+  context.locations.forEach((location) => {
+    md += `### Location: ${location.filePath}:${location.lineNumber}\n\n`;
+    md += "```\n";
+
+    // 前の行
+    location.beforeLines.forEach((line) => {
+      md += `${line.lineNumber}: ${line.content}\n`;
+    });
+
+    // 該当行（ハイライト）
+    md += `>>> ${location.lineNumber}: ${location.targetLine}\n`;
+
+    // 後の行
+    location.afterLines.forEach((line) => {
+      md += `${line.lineNumber}: ${line.content}\n`;
+    });
+
+    md += "```\n\n";
+  });
+
+  return md;
+}
+
+/**
+ * コンテキスト抽出結果を JSON 形式でフォーマット
+ */
+export function formatContextAsJson(
+  result: ContextExtractionResult,
+): string {
+  return JSON.stringify(result, null, 2);
+}
+
+/**
+ * コンテキスト抽出結果をシンプルテキスト形式でフォーマット
+ */
+export function formatContextAsSimple(
+  result: ContextExtractionResult,
+): string {
+  let text = "";
+
+  result.contexts.forEach((context) => {
+    context.locations.forEach((location) => {
+      text += `${location.filePath}:${location.lineNumber}: ${context.id}\n`;
+    });
+  });
+
+  return text;
+}
+````
+
 ### 処理フロー（類似度検索モード）
 
 1. **ファイルスキャン** - 通常のクラスタリングと同じ
@@ -660,7 +1021,7 @@ export function searchByKeyword(
 5. **フィルタリング** - 上位N件（オプション）
 6. **出力** - simple形式 or JSON形式
 
-### CLI実装の変更点
+### CLI実装の変更点（3モード対応）
 
 ```typescript
 // src/cli.ts に追加
@@ -668,23 +1029,41 @@ export function searchByKeyword(
 async function main() {
   const args = parseArgs(Deno.args, {
     string: [
-      "mode", // 新規: cluster | search
-      "query", // 新規: 検索クエリ
-      "top", // 新規: 上位N件
+      "mode", // cluster | search | extract
+      "query", // 検索クエリ（search モード）
+      "top", // 上位N件（search モード）
+      "ids", // ID一覧（extract モード）
+      "ids-file", // IDファイル（extract モード）
+      "before", // 前N行（extract モード）
+      "after", // 後M行（extract モード）
       "algorithm",
       "distance",
       "format",
-      // ...
+      "threshold",
+      "k",
+      "epsilon",
+      "min-points",
     ],
-    boolean: ["help", "show-distance"], // 新規: 距離表示
+    boolean: ["help", "show-distance"],
     default: {
       mode: "cluster",
       algorithm: "hierarchical",
       distance: "levenshtein",
       format: "simple",
-      // ...
+      before: "3",
+      after: "10",
+      threshold: "10",
+      k: "0",
+      epsilon: "0.3",
+      "min-points": "2",
     },
   });
+
+  // ヘルプ表示
+  if (args.help) {
+    showUsage();
+    Deno.exit(0);
+  }
 
   // モード判定
   if (args.mode === "search") {
@@ -694,8 +1073,15 @@ async function main() {
       Deno.exit(1);
     }
     await runSearchMode(args);
+  } else if (args.mode === "extract") {
+    // コンテキスト抽出モード（新機能）
+    if (!args.ids && !args["ids-file"]) {
+      console.error("Error: --ids or --ids-file is required in extract mode");
+      Deno.exit(1);
+    }
+    await runExtractMode(args);
   } else {
-    // クラスタリングモード
+    // クラスタリングモード（デフォルト）
     await runClusterMode(args);
   }
 }
@@ -724,6 +1110,154 @@ async function runSearchMode(args: any) {
   );
   await Deno.writeTextFile(outputFile, content);
 }
+
+async function runExtractMode(args: any) {
+  try {
+    console.log(`Extract mode`);
+
+    // 1. ID一覧を読み込み
+    const targetIds = await loadIds(
+      args.ids || args["ids-file"],
+      Boolean(args["ids-file"]),
+    );
+    console.log(`Target IDs: ${targetIds.length}`);
+
+    // 2. ファイルスキャン & ID抽出
+    console.log(`Scanning files in: ${inputDir}`);
+    const files = await scanFiles(inputDir);
+    console.log(`Found ${files.length} markdown files`);
+
+    console.log("Extracting traceability IDs...");
+    const ids = await extractIds(files);
+    console.log(`Extracted ${ids.length} IDs`);
+
+    // 3. コンテキスト抽出を実行
+    console.log("Extracting context...");
+    const request: ContextExtractionRequest = {
+      ids: targetIds,
+      before: parseInt(args.before),
+      after: parseInt(args.after),
+    };
+    const result = await extractContext(request, ids);
+    console.log(`Found ${result.contexts.length} IDs`);
+    console.log(`Not found: ${result.notFound.length} IDs`);
+
+    // 4. 結果を出力
+    console.log(`Writing results to: ${outputFile}`);
+    const content = formatContextResult(result, args.format);
+    await Deno.writeTextFile(outputFile, content);
+
+    console.log("Done!");
+  } catch (error) {
+    console.error(
+      `Error: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    Deno.exit(1);
+  }
+}
+
+function formatContextResult(
+  result: ContextExtractionResult,
+  format: string,
+): string {
+  switch (format) {
+    case "json":
+      return formatContextAsJson(result);
+    case "markdown":
+      return formatContextAsMarkdown(result);
+    case "simple":
+      return formatContextAsSimple(result);
+    default:
+      return formatContextAsMarkdown(result);
+  }
+}
+```
+
+### ヘルプメッセージへの追加
+
+```typescript
+function showUsage() {
+  console.log(`
+USAGE:
+  deno run --allow-read [--allow-write] src/cli.ts <input-dir> <output-file> [options]
+
+ARGUMENTS:
+  <input-dir>     Directory to scan for .md files (recursively scanned)
+  <output-file>   Path where results will be written
+
+GLOBAL OPTIONS:
+  --mode <mode>           Execution mode (default: cluster)
+                          • cluster - Group similar IDs into clusters
+                          • search  - Find IDs similar to a query
+                          • extract - Extract context around specific IDs (NEW)
+
+  --format <format>       Output format (default: simple)
+                          • simple           - Simple output
+                          • json            - Full structured data
+                          • markdown        - Human-readable report
+
+  --help                  Show this help message
+
+CLUSTERING MODE OPTIONS:
+  (same as before...)
+
+SEARCH MODE OPTIONS:
+  (same as before...)
+
+EXTRACT MODE OPTIONS (NEW):
+  --ids <string>          Space-separated list of IDs to extract
+                          Example: "req:apikey:security-4f7b2e#20251111a req:auth:login-abc123#v1"
+
+  --ids-file <path>       Path to file containing IDs (one per line)
+                          Alternative to --ids option
+
+  --before <number>       Number of lines before target line (default: 3)
+                          Context lines to include before the matched line
+
+  --after <number>        Number of lines after target line (default: 10)
+                          Context lines to include after the matched line
+
+EXTRACT MODE EXAMPLES (NEW):
+
+  # Extract context for a single ID
+  deno run --allow-read src/cli.ts ./docs ./output/context.md \\
+    --mode extract \\
+    --ids "req:apikey:security-4f7b2e#20251111a" \\
+    --before 3 \\
+    --after 10
+
+  # Extract context for multiple IDs
+  deno run --allow-read src/cli.ts ./docs ./output/context.md \\
+    --mode extract \\
+    --ids "req:apikey:security-4f7b2e#20251111a req:apikey:encryption-6d3a9c#20251111a"
+
+  # Extract from ID list file
+  deno run --allow-read src/cli.ts ./docs ./output/context.md \\
+    --mode extract \\
+    --ids-file ./ids-to-extract.txt \\
+    --before 5 \\
+    --after 15
+
+  # Output as JSON
+  deno run --allow-read src/cli.ts ./docs ./output/context.json \\
+    --mode extract \\
+    --ids "req:apikey:security-4f7b2e#20251111a" \\
+    --format json
+
+  # Pipeline: search then extract
+  # 1. Search for similar IDs
+  deno run --allow-read --allow-write src/cli.ts ./docs ./tmp/similar.txt \\
+    --mode search \\
+    --query "security" \\
+    --top 5 \\
+    --format simple
+
+  # 2. Extract context for found IDs
+  deno run --allow-read src/cli.ts ./docs ./output/context.md \\
+    --mode extract \\
+    --ids-file ./tmp/similar.txt
+  `);
+}
 ```
 
 ## 拡張性
@@ -736,4 +1270,53 @@ async function runSearchMode(args: any) {
 
 インターフェースを守れば、既存コードの変更なしに追加可能。
 
-類似度検索機能は既存のクラスタリング機能とは独立したモードとして実装されるため、相互に影響しない。
+### 3つのモードの独立性と役割
+
+| モード      | 役割               | 入力         | 処理                          | 出力                      |
+| ----------- | ------------------ | ------------ | ----------------------------- | ------------------------- |
+| **cluster** | IDをグループ化     | ディレクトリ | 距離行列作成 + クラスタリング | クラスタ化されたID一覧    |
+| **search**  | 類似IDを探す       | クエリ文字列 | 距離計算（クエリ vs 全ID）    | 類似度順のID一覧          |
+| **extract** | IDの使用箇所を探す | ID一覧       | ファイル検索（grep的）        | 該当箇所 + 前後のテキスト |
+
+各モードは互いに影響を与えず、独立して拡張・保守可能。
+
+### パイプライン的な使用
+
+各モードは独立しているが、組み合わせて使用することで強力なワークフローを実現：
+
+1. **cluster → extract**: クラスタリング結果から特定クラスタのIDを抽出 →
+   実際の使用箇所をgrep的に検索
+2. **search → extract**: "security"に類似したIDを距離計算で探す →
+   見つかったIDの実際の使用箇所を検索
+3. **extract のみ**: 既知のIDリストの使用箇所を一括で grep 的に検索
+
+## モジュール構成の全体像（新機能含む）
+
+```
+src/
+├── core/
+│   ├── types.ts              # 共通型定義（新型追加）
+│   ├── extractor.ts          # ID抽出
+│   └── scanner.ts            # ファイルスキャン
+├── distance/
+│   ├── calculator.ts         # 距離計算インターフェース
+│   ├── levenshtein.ts        # レーベンシュタイン距離
+│   ├── jaro_winkler.ts       # ジャロ・ウィンクラー距離
+│   ├── cosine.ts             # コサイン類似度
+│   └── structural.ts         # 構造的類似度
+├── clustering/
+│   ├── algorithm.ts          # クラスタリングインターフェース
+│   ├── hierarchical.ts       # 階層的クラスタリング
+│   ├── kmeans.ts             # K-Means
+│   └── dbscan.ts             # DBSCAN
+├── search/
+│   └── similarity.ts         # 類似度検索実装
+├── extract/                  # コンテキスト抽出（新規）
+│   ├── context.ts           # コンテキスト抽出ロジック
+│   └── loader.ts            # ID一覧の読み込み
+├── formatter/
+│   ├── formatter.ts          # 出力フォーマッター（context対応追加）
+│   └── simple.ts             # シンプル形式
+├── cli.ts                    # CLIエントリポイント（3モード対応）
+└── mod.ts                    # ライブラリエントリポイント（新エクスポート追加）
+```

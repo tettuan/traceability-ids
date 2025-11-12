@@ -9,11 +9,20 @@ import { StructuralDistance } from "./distance/structural.ts";
 import { HierarchicalClustering } from "./clustering/hierarchical.ts";
 import { KMeansClustering } from "./clustering/kmeans.ts";
 import { DBSCANClustering } from "./clustering/dbscan.ts";
-import { formatResult, formatSearchResult } from "./formatter/formatter.ts";
+import {
+  formatContextResult,
+  formatResult,
+  formatSearchResult,
+} from "./formatter/formatter.ts";
 import { searchSimilar } from "./search/similarity.ts";
+import { extractContext } from "./extract/context.ts";
+import { loadIds } from "./extract/loader.ts";
 import type { DistanceCalculator } from "./distance/calculator.ts";
 import type { ClusteringAlgorithm } from "./clustering/algorithm.ts";
-import type { ClusteringResult } from "./core/types.ts";
+import type {
+  ClusteringResult,
+  ContextExtractionRequest,
+} from "./core/types.ts";
 
 /**
  * 距離計算器を取得
@@ -69,22 +78,29 @@ function showUsage() {
     `Traceability IDs - Extract and cluster traceability IDs from markdown files
 
 USAGE:
-  deno run --allow-read --allow-write src/cli.ts <input-dir> <output-file> [options]
+  # Cluster mode (default entry point)
+  deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids <input-dir> <output-file> [options]
+
+  # Search mode (use /search subpath)
+  deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/search <input-dir> <output-file> --query <query> [options]
+
+  # Extract mode (use /extract subpath)
+  deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/extract <input-dir> <output-file> --ids <ids> [options]
 
 ARGUMENTS:
   <input-dir>     Directory to scan for .md files (recursively scanned)
   <output-file>   Path where results will be written
 
-GLOBAL OPTIONS:
-  --mode <mode>           Execution mode (default: cluster)
-                          • cluster - Group similar IDs into clusters
-                          • search  - Find IDs similar to a query
-
-  --distance <name>       Distance calculation method (default: levenshtein)
+CLUSTER MODE OPTIONS:
+  --distance <name>       Distance calculation method (default: structural)
                           • levenshtein  - Edit distance (simple, general-purpose)
                           • jaro-winkler - Prefix-weighted similarity
-                          • cosine       - N-gram based similarity
-                          • structural   - Component-aware (RECOMMENDED for scope grouping)
+                          • cosine       - N-gram based (BEST for keyword search)
+                          • structural   - Component-aware (BEST for scope grouping)
+                          • levenshtein  - Edit distance (simple, general-purpose)
+                          • jaro-winkler - Prefix-weighted similarity
+                          • cosine       - N-gram based (BEST for keyword search)
+                          • structural   - Component-aware (BEST for scope grouping)
 
   --format <format>       Output format (default: simple)
                           • simple           - Unique ID list, one per line
@@ -101,8 +117,9 @@ CLUSTERING MODE OPTIONS:
                           • kmeans       - Partition-based clustering
                           • dbscan       - Density-based clustering
 
-  --threshold <number>    Distance threshold for hierarchical (default: 10)
+  --threshold <number>    Distance threshold for hierarchical (default: 0.3)
                           IDs within this distance will be merged into clusters
+                          Recommended: 0.3 (structural), 0.2-0.3 (cosine)
 
   --k <number>            Number of clusters for K-Means (default: 0 = auto)
                           0 means automatic estimation based on dataset size
@@ -123,50 +140,72 @@ SEARCH MODE OPTIONS:
   --show-distance         Include distance scores in output (default: false)
                           Useful for understanding similarity rankings
 
+EXTRACT MODE OPTIONS:
+  --ids <string>          Space-separated list of IDs to extract (REQUIRED in extract mode)
+                          Example: "req:apikey:security-4f7b2e#20251111a req:auth:login-abc123#v1"
+
+  --ids-file <path>       Path to file containing IDs (one per line)
+                          Alternative to --ids option
+
+  --before <number>       Number of lines before target line (default: 3, max: 50)
+                          Context lines to include before the matched line
+
+  --after <number>        Number of lines after target line (default: 10, max: 50)
+                          Context lines to include after the matched line
+
 EXAMPLES:
 
   Clustering Examples:
 
     # Basic clustering - finds similar IDs and groups them
-    deno run --allow-read --allow-write src/cli.ts ./docs ./output/ids.txt
+    deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./docs ./output/ids.txt
 
-    # Group IDs by scope using structural distance (recommended)
-    deno run --allow-read --allow-write src/cli.ts ./docs ./output/ids.txt \\
-      --distance structural --threshold 0.3
+    # Group IDs by scope using structural distance (default)
+    deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./docs ./output/ids.txt \\
+      --threshold 0.3
 
     # Create exactly 5 clusters using K-Means
-    deno run --allow-read --allow-write src/cli.ts ./docs ./output/ids.txt \\
+    deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./docs ./output/ids.txt \\
       --algorithm kmeans --k 5
 
-    # Density-based clustering to find natural groups
-    deno run --allow-read --allow-write src/cli.ts ./docs ./output/ids.txt \\
-      --algorithm dbscan --epsilon 0.3 --min-points 2
-
     # Output with cluster boundaries visible
-    deno run --allow-read --allow-write src/cli.ts ./docs ./output/ids.txt \\
+    deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./docs ./output/ids.txt \\
       --format simple-clustered
 
-  Search Examples:
+  Search Examples (use /search subpath):
 
     # Find IDs related to "security" (top 10 most similar)
-    deno run --allow-read --allow-write src/cli.ts ./docs ./output/security.txt \\
-      --mode search --query "security" --top 10
+    deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/search ./docs ./output/security.txt \\
+      --query "security" --top 10
 
     # Search with similarity scores shown
-    deno run --allow-read --allow-write src/cli.ts ./docs ./output/security.txt \\
-      --mode search --query "security" --show-distance
-
-    # Find IDs similar to a specific ID
-    deno run --allow-read --allow-write src/cli.ts ./docs ./output/similar.txt \\
-      --mode search --query "req:apikey:security-4f7b2e#20251111a"
+    deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/search ./docs ./output/security.txt \\
+      --query "security" --show-distance
 
     # Structural search (better for finding same-scope IDs)
-    deno run --allow-read --allow-write src/cli.ts ./docs ./output/similar.txt \\
-      --mode search --query "encryption" --distance structural --top 20
+    deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/search ./docs ./output/similar.txt \\
+      --query "encryption" --distance structural --top 20
 
-    # Get detailed JSON output for programmatic use
-    deno run --allow-read --allow-write src/cli.ts ./docs ./output/results.json \\
-      --mode search --query "auth" --format json
+  Extract Examples (use /extract subpath):
+
+    # Extract context for a single ID (grep-like search)
+    deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/extract ./docs ./output/context.md \\
+      --ids "req:apikey:security-4f7b2e#20251111a" \\
+      --before 3 --after 10
+
+    # Extract from ID list file
+    deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/extract ./docs ./output/context.md \\
+      --ids-file ./ids-to-extract.txt \\
+      --before 5 --after 15
+
+    # Pipeline: search then extract
+    # Step 1: Search for similar IDs
+    deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/search ./docs ./tmp/similar.txt \\
+      --query "security" --top 5 --format simple
+
+    # Step 2: Extract context for found IDs
+    deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/extract ./docs ./output/context.md \\
+      --ids-file ./tmp/similar.txt
 
 DISTANCE CALCULATION GUIDE:
 
@@ -211,6 +250,10 @@ async function main() {
       "mode",
       "query",
       "top",
+      "ids",
+      "ids-file",
+      "before",
+      "after",
       "algorithm",
       "distance",
       "format",
@@ -223,9 +266,11 @@ async function main() {
     default: {
       mode: "cluster",
       algorithm: "hierarchical",
-      distance: "levenshtein",
+      distance: "", // モードによって異なるデフォルトを使用
       format: "simple",
-      threshold: "10",
+      before: "3",
+      after: "10",
+      threshold: "0.3", // structuralに最適化
       k: "0",
       epsilon: "0.3",
       "min-points": "2",
@@ -248,12 +293,14 @@ async function main() {
   const inputDir = String(args._[0]);
   const outputFile = String(args._[1]);
 
-  // モード判定
-  if (args.mode === "search") {
-    await runSearchMode(args, inputDir, outputFile);
-  } else {
-    await runClusterMode(args, inputDir, outputFile);
+  // デフォルトはクラスタリングモード（structural distance）
+  if (!args.distance) {
+    args.distance = "structural";
   }
+
+  // このエントリーポイントはクラスタリングモード専用
+  // Search, Extract は別のエントリーポイント（search.ts, extract.ts）を使用
+  await runClusterMode(args, inputDir, outputFile);
 }
 
 /**
@@ -331,6 +378,74 @@ async function runClusterMode(
         | "csv"
         | "simple"
         | "simple-clustered",
+    );
+    await Deno.writeTextFile(outputFile, content);
+
+    console.log("Done!");
+  } catch (error) {
+    console.error(
+      `Error: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    Deno.exit(1);
+  }
+}
+
+/**
+ * コンテキスト抽出モードを実行
+ */
+async function runExtractMode(
+  // deno-lint-ignore no-explicit-any
+  args: any,
+  inputDir: string,
+  outputFile: string,
+) {
+  try {
+    // クエリのチェック
+    if (!args.ids && !args["ids-file"]) {
+      console.error("Error: --ids or --ids-file is required in extract mode\n");
+      showUsage();
+      Deno.exit(1);
+    }
+
+    console.log(`Extract mode`);
+
+    // 1. ID一覧を読み込み
+    const targetIds = await loadIds(
+      args.ids || args["ids-file"],
+      Boolean(args["ids-file"]),
+    );
+    console.log(`Target IDs: ${targetIds.length}`);
+
+    // 2. ファイルをスキャン & ID抽出
+    console.log(`Scanning files in: ${inputDir}`);
+    const files = await scanFiles(inputDir);
+    console.log(`Found ${files.length} markdown files`);
+
+    console.log("Extracting traceability IDs...");
+    const ids = await extractIds(files);
+    console.log(`Extracted ${ids.length} IDs`);
+
+    if (ids.length === 0) {
+      console.warn("No traceability IDs found");
+      Deno.exit(0);
+    }
+
+    // 3. コンテキスト抽出を実行
+    console.log("Extracting context...");
+    const request: ContextExtractionRequest = {
+      ids: targetIds,
+      before: parseInt(args.before),
+      after: parseInt(args.after),
+    };
+    const result = await extractContext(request, ids);
+    console.log(`Found ${result.contexts.length} IDs`);
+    console.log(`Not found: ${result.notFound.length} IDs`);
+
+    // 4. 結果を出力
+    console.log(`Writing results to: ${outputFile}`);
+    const content = formatContextResult(
+      result,
+      args.format as "json" | "markdown" | "simple",
     );
     await Deno.writeTextFile(outputFile, content);
 

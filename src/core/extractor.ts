@@ -66,3 +66,23 @@ export async function extractIds(
 
   return allIds;
 }
+
+/**
+ * IDを重複排除する（fullIdが同じものは最初の1つだけ保持）
+ * 検索モードで使用する
+ * @param ids ID配列
+ * @returns 重複排除されたID配列
+ */
+export function deduplicateIds(ids: TraceabilityId[]): TraceabilityId[] {
+  const seen = new Set<string>();
+  const deduplicated: TraceabilityId[] = [];
+
+  for (const id of ids) {
+    if (!seen.has(id.fullId)) {
+      seen.add(id.fullId);
+      deduplicated.push(id);
+    }
+  }
+
+  return deduplicated;
+}

@@ -1,5 +1,6 @@
 import { assertEquals } from "jsr:@std/assert";
-import { extractIdsFromFile } from "./extractor.ts";
+import { deduplicateIds, extractIdsFromFile } from "./extractor.ts";
+import type { TraceabilityId } from "./types.ts";
 
 Deno.test("extractIdsFromFile - valid ID extraction", async () => {
   // Create a temporary test file
@@ -187,4 +188,98 @@ Same ID again: req:test:duplicate-abc123#v1
   } finally {
     await Deno.remove(testFile);
   }
+});
+
+Deno.test("deduplicateIds - removes duplicate IDs", () => {
+  const ids: TraceabilityId[] = [
+    {
+      fullId: "req:test:id1-abc123#v1",
+      level: "req",
+      scope: "test",
+      semantic: "id1",
+      hash: "abc123",
+      version: "v1",
+      filePath: "file1.md",
+      lineNumber: 1,
+    },
+    {
+      fullId: "req:test:id1-abc123#v1",
+      level: "req",
+      scope: "test",
+      semantic: "id1",
+      hash: "abc123",
+      version: "v1",
+      filePath: "file2.md",
+      lineNumber: 5,
+    },
+    {
+      fullId: "req:test:id2-xyz789#v1",
+      level: "req",
+      scope: "test",
+      semantic: "id2",
+      hash: "xyz789",
+      version: "v1",
+      filePath: "file1.md",
+      lineNumber: 10,
+    },
+    {
+      fullId: "req:test:id1-abc123#v1",
+      level: "req",
+      scope: "test",
+      semantic: "id1",
+      hash: "abc123",
+      version: "v1",
+      filePath: "file3.md",
+      lineNumber: 20,
+    },
+  ];
+
+  const deduplicated = deduplicateIds(ids);
+
+  // Should keep only 2 unique IDs
+  assertEquals(deduplicated.length, 2);
+  assertEquals(deduplicated[0].fullId, "req:test:id1-abc123#v1");
+  assertEquals(deduplicated[1].fullId, "req:test:id2-xyz789#v1");
+
+  // Should keep the first occurrence of each
+  assertEquals(deduplicated[0].filePath, "file1.md");
+  assertEquals(deduplicated[0].lineNumber, 1);
+});
+
+Deno.test("deduplicateIds - empty input", () => {
+  const ids: TraceabilityId[] = [];
+  const deduplicated = deduplicateIds(ids);
+  assertEquals(deduplicated.length, 0);
+});
+
+Deno.test("deduplicateIds - no duplicates", () => {
+  const ids: TraceabilityId[] = [
+    {
+      fullId: "req:test:id1-abc123#v1",
+      level: "req",
+      scope: "test",
+      semantic: "id1",
+      hash: "abc123",
+      version: "v1",
+      filePath: "file1.md",
+      lineNumber: 1,
+    },
+    {
+      fullId: "req:test:id2-xyz789#v1",
+      level: "req",
+      scope: "test",
+      semantic: "id2",
+      hash: "xyz789",
+      version: "v1",
+      filePath: "file2.md",
+      lineNumber: 5,
+    },
+  ];
+
+  const deduplicated = deduplicateIds(ids);
+
+  // Should return all IDs unchanged
+  assertEquals(deduplicated.length, 2);
+  assertEquals(deduplicated[0].fullId, "req:test:id1-abc123#v1");
+  assertEquals(deduplicated[1].fullId, "req:test:id2-xyz789#v1");
 });
