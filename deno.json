@@ -9,9 +9,9 @@
   "tasks": {
     "dev": "deno run --allow-read --allow-write src/cli.ts",
     "test": "deno test --allow-read --allow-write --allow-env",
-    "example": "deno run --allow-read --allow-write src/cli.ts ./data ./tmp/clusters.txt --format simple-clustered",
-    "example:search": "deno run --allow-read --allow-write search.ts ./data ./tmp/search.txt --query apikey --top 10 --show-distance",
-    "example:extract": "deno run --allow-read --allow-write extract.ts ./data ./tmp/extract.md --ids 'req:apikey:security-4f7b2e#20251111a' --format markdown",
+    "example": "deno run --allow-read --allow-write src/cli.ts ./data --output ./tmp/clusters.txt --format simple-clustered",
+    "example:search": "deno run --allow-read --allow-write search.ts ./data --query apikey --top 10 --show-distance --output ./tmp/search.txt",
+    "example:extract": "deno run --allow-read --allow-write extract.ts ./data --ids 'req:apikey:security-4f7b2e#20251111a' --format markdown --output ./tmp/extract.md",
     "ci": "deno run -A jsr:@aidevtool/ci"
   },
   "imports": {

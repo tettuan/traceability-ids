@@ -10,20 +10,19 @@ function showUsage() {
     `Traceability IDs - Extract and cluster traceability IDs from markdown files
 
 USAGE:
-  # Cluster mode (default entry point)
-  deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids <input-dir> <output-file> [options]
+  deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids [options] <input-dir>
 
   # Search mode (use /search subpath)
-  deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/search <input-dir> <output-file> --query <query> [options]
+  deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/search [options] <input-dir>
 
   # Extract mode (use /extract subpath)
-  deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/extract <input-dir> <output-file> --ids <ids> [options]
+  deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/extract [options] <input-dir>
 
 ARGUMENTS:
   <input-dir>     Directory to scan for .md files (recursively scanned)
-  <output-file>   Path where results will be written
 
 CLUSTER MODE OPTIONS:
+  --output <file>         Output file path (default: STDOUT)
   --distance <name>       Distance calculation method (default: structural)
                           • levenshtein  - Edit distance (simple, general-purpose)
                           • jaro-winkler - Prefix-weighted similarity
@@ -54,53 +53,24 @@ CLUSTER MODE OPTIONS:
   --help                  Show this help message
 
 EXAMPLES:
-  # Default: Hierarchical clustering with structural distance
+  # Output to STDOUT
+  deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./docs
+
+  # Output to file
   deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids \\
-    ./docs ./output/clusters.txt
+    ./docs --output clusters.txt
 
   # Custom threshold for finer clusters
   deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids \\
-    ./docs ./output/clusters.txt --threshold 0.2
+    --threshold 0.2 ./docs --output clusters.txt
 
   # K-means clustering with 5 groups, JSON output
   deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids \\
-    ./docs ./output/clusters.json \\
-    --algorithm kmeans --k 5 --format json
+    --algorithm kmeans --k 5 --format json ./docs
 
-  # DBSCAN with cosine distance for keyword-based grouping
+  # Options can be in any order
   deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids \\
-    ./docs ./output/clusters.txt \\
-    --algorithm dbscan --distance cosine --epsilon 0.4
-
-DISTANCE CALCULATION GUIDE:
-
-  Choose the right distance calculator for your use case:
-
-  • Use 'structural' when you want to group IDs by scope or structure
-    Example: Group all "req:apikey:*" IDs together
-
-  • Use 'levenshtein' for general-purpose similarity
-    Example: Find typos or similar naming patterns
-
-  • Use 'jaro-winkler' to emphasize prefix matching
-    Example: Group IDs that start similarly
-
-  • Use 'cosine' for substring similarity
-    Example: Find IDs with common word parts
-
-TRACEABILITY ID FORMAT:
-
-  Pattern: {level}:{scope}:{semantic}-{hash}#{version}
-  Example: req:apikey:security-4f7b2e#20251111a
-
-  Components:
-    • level    : Requirement type (e.g., req, design, test)
-    • scope    : Feature area (e.g., apikey, dashboard)
-    • semantic : Description (e.g., security, encryption)
-    • hash     : Unique identifier
-    • version  : Version or date
-
-For more information, see: https://github.com/your-repo/traceability-ids
+    --algorithm dbscan ./docs --distance cosine --epsilon 0.4
 `,
   );
 }
@@ -119,6 +89,7 @@ async function main() {
       "k",
       "epsilon",
       "min-points",
+      "output",
     ],
     boolean: ["help"],
     default: {
@@ -139,8 +110,8 @@ async function main() {
   }
 
   // 必須引数のチェック
-  if (args._.length < 2) {
-    console.error("Error: Missing required arguments\n");
+  if (args._.length < 1) {
+    console.error("Error: Missing required argument <input-dir>\n");
     showUsage();
     Deno.exit(1);
   }
@@ -155,7 +126,7 @@ async function main() {
 
     await runClusterMode({
       inputDir: String(args._[0]),
-      outputFile: String(args._[1]),
+      outputFile: args.output ? String(args.output) : undefined,
       algorithm: args.algorithm,
       distance: args.distance,
       format: args.format as

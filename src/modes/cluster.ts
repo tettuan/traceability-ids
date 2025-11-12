@@ -11,7 +11,7 @@ import type { ClusteringResult } from "../core/types.ts";
 
 export interface ClusterModeOptions {
   inputDir: string;
-  outputFile: string;
+  outputFile?: string;
   algorithm: string;
   distance: string;
   format: "json" | "markdown" | "csv" | "simple" | "simple-clustered";
@@ -24,48 +24,47 @@ export interface ClusterModeOptions {
 export async function runClusterMode(
   options: ClusterModeOptions,
 ): Promise<void> {
-  // 距離計算器を選択
-  console.log(`Distance calculator: ${options.distance}`);
+  // Progress logs go to STDERR
+  console.error(`Distance calculator: ${options.distance}`);
   const calculator = createDistanceCalculator(options.distance);
 
-  // クラスタリングアルゴリズムを選択
-  console.log(`Clustering algorithm: ${options.algorithm}`);
+  console.error(`Clustering algorithm: ${options.algorithm}`);
   const algorithm = createClusteringAlgorithm(
     options.algorithm,
     options.clusteringOptions,
   );
 
   // 1. ファイルをスキャン
-  console.log(`Scanning files in: ${options.inputDir}`);
+  console.error(`Scanning files in: ${options.inputDir}`);
   const files = await scanFiles(options.inputDir);
-  console.log(`Found ${files.length} markdown files`);
+  console.error(`Found ${files.length} markdown files`);
 
   if (files.length === 0) {
-    console.warn("No markdown files found");
+    console.error("No markdown files found");
     return;
   }
 
   // 2. IDを抽出
-  console.log("Extracting traceability IDs...");
+  console.error("Extracting traceability IDs...");
   const ids = await extractIds(files);
-  console.log(`Extracted ${ids.length} IDs`);
+  console.error(`Extracted ${ids.length} IDs`);
 
   if (ids.length === 0) {
-    console.warn("No traceability IDs found");
+    console.error("No traceability IDs found");
     return;
   }
 
   // 3. 距離行列を作成
-  console.log(`Calculating distance matrix using: ${calculator.name}`);
+  console.error(`Calculating distance matrix using: ${calculator.name}`);
   const matrix = createDistanceMatrix(
     ids.map((id) => id.fullId),
     calculator,
   );
 
   // 4. クラスタリング実行
-  console.log(`Clustering using: ${algorithm.name}`);
+  console.error(`Clustering using: ${algorithm.name}`);
   const clusters = algorithm.cluster(ids, matrix);
-  console.log(`Created ${clusters.length} clusters`);
+  console.error(`Created ${clusters.length} clusters`);
 
   // 結果を構造化
   const result: ClusteringResult = {
@@ -75,9 +74,14 @@ export async function runClusterMode(
   };
 
   // 5. 結果を出力
-  console.log(`Writing results to: ${options.outputFile}`);
   const content = formatResult(result, options.format);
-  await Deno.writeTextFile(options.outputFile, content);
 
-  console.log("Done!");
+  if (options.outputFile) {
+    console.error(`Writing results to: ${options.outputFile}`);
+    await Deno.writeTextFile(options.outputFile, content);
+    console.error("Done!");
+  } else {
+    // Output to STDOUT
+    console.log(content);
+  }
 }

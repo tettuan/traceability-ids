@@ -3,7 +3,7 @@
  * Search mode entry point for JSR
  *
  * Usage:
- *   deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/search <input-dir> <output-file> --query <query> [options]
+ *   deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/search <input-dir> --query <query> [options]
  */
 
 import { parseArgs } from "jsr:@std/cli@^1.0.9/parse-args";
@@ -11,7 +11,7 @@ import { runSearchMode } from "./src/modes/search.ts";
 
 async function main() {
   const args = parseArgs(Deno.args, {
-    string: ["query", "top", "distance", "format"],
+    string: ["query", "top", "distance", "format", "output"],
     boolean: ["help", "show-distance"],
     default: {
       distance: "cosine", // Search mode default
@@ -19,18 +19,18 @@ async function main() {
     },
   });
 
-  if (args.help || args._.length < 2 || !args.query) {
+  if (args.help || args._.length < 1 || !args.query) {
     console.log(`Search Mode - Find IDs similar to a query
 
 USAGE:
-  deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/search <input-dir> <output-file> --query <query> [options]
+  deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/search [options] <input-dir>
 
 ARGUMENTS:
   <input-dir>     Directory to scan for .md files
-  <output-file>   Path where results will be written
 
 OPTIONS:
   --query <string>        Search query (REQUIRED)
+  --output <file>         Output file path (default: STDOUT)
   --distance <name>       Distance calculation method (default: cosine)
                           • levenshtein, jaro-winkler, cosine, structural
   --top <number>          Return only top N results (default: all)
@@ -39,10 +39,18 @@ OPTIONS:
                           • simple, json, markdown, csv
   --help                  Show this help message
 
-EXAMPLE:
+EXAMPLES:
+  # Output to STDOUT
   deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/search \\
-    ./docs ./output/search.txt \\
-    --query "security" --top 10 --show-distance
+    --query "security" --top 10 ./docs
+
+  # Output to file
+  deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/search \\
+    ./docs --query "security" --output result.txt --show-distance
+
+  # Options can be in any order
+  deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/search \\
+    --top 5 --query "auth" ./data --distance cosine
 `);
     Deno.exit(args.help ? 0 : 1);
   }
@@ -50,7 +58,7 @@ EXAMPLE:
   try {
     await runSearchMode({
       inputDir: String(args._[0]),
-      outputFile: String(args._[1]),
+      outputFile: args.output ? String(args.output) : undefined,
       query: args.query,
       distance: args.distance,
       top: args.top ? parseInt(args.top) : undefined,

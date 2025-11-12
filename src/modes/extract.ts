@@ -7,7 +7,7 @@ import type { ContextExtractionRequest } from "../core/types.ts";
 
 export interface ExtractModeOptions {
   inputDir: string;
-  outputFile: string;
+  outputFile?: string;
   idsSource: string;
   isFile: boolean;
   before: number;
@@ -21,37 +21,43 @@ export interface ExtractModeOptions {
 export async function runExtractMode(
   options: ExtractModeOptions,
 ): Promise<void> {
-  console.log(`Extract mode`);
+  // Progress logs go to STDERR
+  console.error(`Extract mode`);
 
   const targetIds = await loadIds(options.idsSource, options.isFile);
-  console.log(`Target IDs: ${targetIds.length}`);
+  console.error(`Target IDs: ${targetIds.length}`);
 
-  console.log(`Scanning files in: ${options.inputDir}`);
+  console.error(`Scanning files in: ${options.inputDir}`);
   const files = await scanFiles(options.inputDir);
-  console.log(`Found ${files.length} markdown files`);
+  console.error(`Found ${files.length} markdown files`);
 
-  console.log("Extracting traceability IDs...");
+  console.error("Extracting traceability IDs...");
   const ids = await extractIds(files);
-  console.log(`Extracted ${ids.length} IDs`);
+  console.error(`Extracted ${ids.length} IDs`);
 
   if (ids.length === 0) {
-    console.warn("No traceability IDs found");
+    console.error("No traceability IDs found");
     return;
   }
 
-  console.log("Extracting context...");
+  console.error("Extracting context...");
   const request: ContextExtractionRequest = {
     ids: targetIds,
     before: options.before,
     after: options.after,
   };
   const result = await extractContext(request, ids);
-  console.log(`Found ${result.contexts.length} IDs`);
-  console.log(`Not found: ${result.notFound.length} IDs`);
+  console.error(`Found ${result.contexts.length} IDs`);
+  console.error(`Not found: ${result.notFound.length} IDs`);
 
-  console.log(`Writing results to: ${options.outputFile}`);
   const content = formatContextResult(result, options.format);
-  await Deno.writeTextFile(options.outputFile, content);
 
-  console.log("Done!");
+  if (options.outputFile) {
+    console.error(`Writing results to: ${options.outputFile}`);
+    await Deno.writeTextFile(options.outputFile, content);
+    console.error("Done!");
+  } else {
+    // Output to STDOUT
+    console.log(content);
+  }
 }

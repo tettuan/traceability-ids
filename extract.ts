@@ -3,7 +3,7 @@
  * Extract mode entry point for JSR
  *
  * Usage:
- *   deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/extract <input-dir> <output-file> --ids <ids> [options]
+ *   deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/extract <input-dir> --ids <ids> [options]
  */
 
 import { parseArgs } from "jsr:@std/cli@^1.0.9/parse-args";
@@ -11,7 +11,7 @@ import { runExtractMode } from "./src/modes/extract.ts";
 
 async function main() {
   const args = parseArgs(Deno.args, {
-    string: ["ids", "ids-file", "before", "after", "format"],
+    string: ["ids", "ids-file", "before", "after", "format", "output"],
     boolean: ["help"],
     default: {
       before: "3",
@@ -20,19 +20,19 @@ async function main() {
     },
   });
 
-  if (args.help || args._.length < 2 || (!args.ids && !args["ids-file"])) {
+  if (args.help || args._.length < 1 || (!args.ids && !args["ids-file"])) {
     console.log(`Extract Mode - Extract context around specific IDs (grep-like)
 
 USAGE:
-  deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/extract <input-dir> <output-file> --ids <ids> [options]
+  deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/extract [options] <input-dir>
 
 ARGUMENTS:
   <input-dir>     Directory to scan for .md files
-  <output-file>   Path where results will be written
 
 OPTIONS:
   --ids <string>          Space-separated list of IDs to extract (REQUIRED)
   --ids-file <path>       Path to file containing IDs (one per line)
+  --output <file>         Output file path (default: STDOUT)
   --before <number>       Lines before target line (default: 3, max: 50)
   --after <number>        Lines after target line (default: 10, max: 50)
   --format <format>       Output format (default: markdown)
@@ -40,15 +40,21 @@ OPTIONS:
   --help                  Show this help message
 
 EXAMPLES:
-  # Extract context for a single ID
+  # Output to STDOUT
   deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/extract \\
-    ./docs ./output/context.md \\
-    --ids "req:apikey:security-4f7b2e#20251111a"
+    --ids "req:apikey:security-4f7b2e#20251111a" ./docs
+
+  # Output to file
+  deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/extract \\
+    ./docs --ids "req:apikey:security-4f7b2e#20251111a" --output context.md
 
   # Extract from ID list file
   deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/extract \\
-    ./docs ./output/context.md \\
-    --ids-file ./ids.txt --before 5 --after 15
+    --ids-file ./ids.txt ./docs --before 5 --after 15
+
+  # Options can be in any order
+  deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/extract \\
+    --before 5 ./data --ids "req:test:id-abc#v1" --format json
 `);
     Deno.exit(args.help ? 0 : 1);
   }
@@ -62,7 +68,7 @@ EXAMPLES:
 
     await runExtractMode({
       inputDir: String(args._[0]),
-      outputFile: String(args._[1]),
+      outputFile: args.output ? String(args.output) : undefined,
       idsSource,
       isFile: Boolean(args["ids-file"]),
       before: parseInt(args.before),
