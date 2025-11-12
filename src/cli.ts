@@ -9,20 +9,10 @@ import { StructuralDistance } from "./distance/structural.ts";
 import { HierarchicalClustering } from "./clustering/hierarchical.ts";
 import { KMeansClustering } from "./clustering/kmeans.ts";
 import { DBSCANClustering } from "./clustering/dbscan.ts";
-import {
-  formatContextResult,
-  formatResult,
-  formatSearchResult,
-} from "./formatter/formatter.ts";
-import { searchSimilar } from "./search/similarity.ts";
-import { extractContext } from "./extract/context.ts";
-import { loadIds } from "./extract/loader.ts";
+import { formatResult } from "./formatter/formatter.ts";
 import type { DistanceCalculator } from "./distance/calculator.ts";
 import type { ClusteringAlgorithm } from "./clustering/algorithm.ts";
-import type {
-  ClusteringResult,
-  ContextExtractionRequest,
-} from "./core/types.ts";
+import type { ClusteringResult } from "./core/types.ts";
 
 /**
  * 距離計算器を取得
@@ -378,146 +368,6 @@ async function runClusterMode(
         | "csv"
         | "simple"
         | "simple-clustered",
-    );
-    await Deno.writeTextFile(outputFile, content);
-
-    console.log("Done!");
-  } catch (error) {
-    console.error(
-      `Error: ${error instanceof Error ? error.message : String(error)}`,
-    );
-    Deno.exit(1);
-  }
-}
-
-/**
- * コンテキスト抽出モードを実行
- */
-async function runExtractMode(
-  // deno-lint-ignore no-explicit-any
-  args: any,
-  inputDir: string,
-  outputFile: string,
-) {
-  try {
-    // クエリのチェック
-    if (!args.ids && !args["ids-file"]) {
-      console.error("Error: --ids or --ids-file is required in extract mode\n");
-      showUsage();
-      Deno.exit(1);
-    }
-
-    console.log(`Extract mode`);
-
-    // 1. ID一覧を読み込み
-    const targetIds = await loadIds(
-      args.ids || args["ids-file"],
-      Boolean(args["ids-file"]),
-    );
-    console.log(`Target IDs: ${targetIds.length}`);
-
-    // 2. ファイルをスキャン & ID抽出
-    console.log(`Scanning files in: ${inputDir}`);
-    const files = await scanFiles(inputDir);
-    console.log(`Found ${files.length} markdown files`);
-
-    console.log("Extracting traceability IDs...");
-    const ids = await extractIds(files);
-    console.log(`Extracted ${ids.length} IDs`);
-
-    if (ids.length === 0) {
-      console.warn("No traceability IDs found");
-      Deno.exit(0);
-    }
-
-    // 3. コンテキスト抽出を実行
-    console.log("Extracting context...");
-    const request: ContextExtractionRequest = {
-      ids: targetIds,
-      before: parseInt(args.before),
-      after: parseInt(args.after),
-    };
-    const result = await extractContext(request, ids);
-    console.log(`Found ${result.contexts.length} IDs`);
-    console.log(`Not found: ${result.notFound.length} IDs`);
-
-    // 4. 結果を出力
-    console.log(`Writing results to: ${outputFile}`);
-    const content = formatContextResult(
-      result,
-      args.format as "json" | "markdown" | "simple",
-    );
-    await Deno.writeTextFile(outputFile, content);
-
-    console.log("Done!");
-  } catch (error) {
-    console.error(
-      `Error: ${error instanceof Error ? error.message : String(error)}`,
-    );
-    Deno.exit(1);
-  }
-}
-
-/**
- * 類似度検索モードを実行
- */
-async function runSearchMode(
-  // deno-lint-ignore no-explicit-any
-  args: any,
-  inputDir: string,
-  outputFile: string,
-) {
-  try {
-    // クエリのチェック
-    if (!args.query) {
-      console.error("Error: --query is required in search mode\n");
-      showUsage();
-      Deno.exit(1);
-    }
-
-    console.log(`Search mode`);
-    console.log(`Query: ${args.query}`);
-
-    // 距離計算器を選択
-    console.log(`Distance calculator: ${args.distance}`);
-    const calculator: DistanceCalculator = getDistanceCalculator(args.distance);
-
-    // 1. ファイルをスキャン
-    console.log(`Scanning files in: ${inputDir}`);
-    const files = await scanFiles(inputDir);
-    console.log(`Found ${files.length} markdown files`);
-
-    if (files.length === 0) {
-      console.warn("No markdown files found");
-      Deno.exit(0);
-    }
-
-    // 2. IDを抽出
-    console.log("Extracting traceability IDs...");
-    const ids = await extractIds(files);
-    console.log(`Extracted ${ids.length} IDs`);
-
-    if (ids.length === 0) {
-      console.warn("No traceability IDs found");
-      Deno.exit(0);
-    }
-
-    // 3. 類似度検索を実行
-    console.log("Searching for similar IDs...");
-    const result = searchSimilar(
-      args.query,
-      ids,
-      calculator,
-      { top: args.top ? parseInt(args.top) : undefined },
-    );
-    console.log(`Found ${result.items.length} results`);
-
-    // 4. 結果を出力
-    console.log(`Writing results to: ${outputFile}`);
-    const content = formatSearchResult(
-      result,
-      args.format as "json" | "markdown" | "csv" | "simple",
-      args["show-distance"] === true,
     );
     await Deno.writeTextFile(outputFile, content);
 
