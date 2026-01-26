@@ -1,9 +1,20 @@
 #!/usr/bin/env -S deno run --allow-read --allow-write
 /**
- * Extract mode entry point for JSR
+ * Extract mode for retrieving context around specific traceability IDs.
  *
- * Usage:
- *   deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/extract <input-dir> --ids <ids> [options]
+ * Searches markdown files for specified IDs and extracts surrounding lines,
+ * similar to grep with context. Useful for understanding where and how IDs are used.
+ *
+ * @example
+ * ```bash
+ * # Extract context for a specific ID
+ * deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/extract ./docs --ids "req:auth:login-abc#v1"
+ *
+ * # Extract with custom context range
+ * deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/extract ./docs --ids "req:auth:login-abc#v1" --before 5 --after 15
+ * ```
+ *
+ * @module
  */
 
 import { parseArgs } from "jsr:@std/cli@^1.0.9/parse-args";

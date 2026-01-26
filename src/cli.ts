@@ -1,3 +1,21 @@
+/**
+ * CLI tool for extracting and clustering traceability IDs from markdown files.
+ *
+ * Supports multiple clustering algorithms (hierarchical, k-means, DBSCAN) and
+ * distance calculation methods (Levenshtein, Jaro-Winkler, Cosine, Structural).
+ *
+ * @example
+ * ```bash
+ * # Extract and cluster IDs from markdown files
+ * deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./docs
+ *
+ * # Output with cluster boundaries
+ * deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./docs --format simple-clustered
+ * ```
+ *
+ * @module
+ */
+
 import { parseArgs } from "jsr:@std/cli@^1.0.9/parse-args";
 import { runClusterMode } from "./modes/cluster.ts";
 import type { ClusteringOptions } from "./cli/clustering-factory.ts";

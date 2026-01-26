@@ -1,9 +1,20 @@
 #!/usr/bin/env -S deno run --allow-read --allow-write
 /**
- * Search mode entry point for JSR
+ * Search mode for finding traceability IDs similar to a query string.
  *
- * Usage:
- *   deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/search <input-dir> --query <query> [options]
+ * Uses similarity algorithms to find IDs matching a search term or pattern.
+ * Supports multiple distance calculation methods for flexible matching.
+ *
+ * @example
+ * ```bash
+ * # Find IDs similar to "security"
+ * deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/search ./docs --query "security" --top 10
+ *
+ * # Show distance scores
+ * deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/search ./docs --query "auth" --show-distance
+ * ```
+ *
+ * @module
  */
 
 import { parseArgs } from "jsr:@std/cli@^1.0.9/parse-args";
