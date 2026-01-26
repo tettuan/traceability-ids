@@ -76,11 +76,23 @@ git push origin main
 git push origin v{NEW_VERSION}
 ```
 
-### 9. release ブランチの削除 (オプション)
+### 9. release ブランチの削除
 
 ```bash
 git branch -d release/v{NEW_VERSION}
 ```
+
+### 10. 次のパッチリリース用ブランチを作成
+
+リリース完了後、次の開発サイクルに備えて新しいブランチを作成:
+
+```bash
+# 次のパッチバージョンを計算 (例: 0.0.7 -> 0.0.8)
+git checkout -b release/v{NEXT_PATCH_VERSION}
+```
+
+このブランチで次回リリースまでの開発を行います。
+main ブランチは常にリリース済みの安定版を保持します。
 
 ## 注意事項
 
