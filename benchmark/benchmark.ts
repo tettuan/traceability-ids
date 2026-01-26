@@ -48,7 +48,7 @@ async function benchmark(
   };
 }
 
-async function main() {
+async function main(): Promise<void> {
   const inputDir = Deno.args[0];
   if (!inputDir) {
     console.error("Usage: deno run benchmark.ts <input-dir>");
@@ -93,8 +93,9 @@ async function main() {
   // 3. Deduplication
   console.log("3. Deduplication...");
   let uniqueIds: Awaited<ReturnType<typeof deduplicateIds>> = [];
-  const dedupResult = await benchmark("Deduplication", async () => {
+  const dedupResult = await benchmark("Deduplication", () => {
     uniqueIds = deduplicateIds(allIds);
+    return Promise.resolve();
   });
   dedupResult.details = {
     unique: uniqueIds.length,
@@ -113,11 +114,12 @@ async function main() {
   let structuralMatrix: number[][] = [];
   const matrixResult = await benchmark(
     "Distance matrix (structural)",
-    async () => {
+    () => {
       structuralMatrix = createDistanceMatrix(
         uniqueIds.map((id) => id.fullId),
         structuralCalc,
       );
+      return Promise.resolve();
     },
   );
   const calculations = uniqueIds.length * (uniqueIds.length - 1) / 2;
@@ -144,11 +146,12 @@ async function main() {
   let cosineMatrix: number[][] = [];
   const cosineMatrixResult = await benchmark(
     "Distance matrix (cosine)",
-    async () => {
+    () => {
       cosineMatrix = createDistanceMatrix(
         uniqueIds.map((id) => id.fullId),
         cosineCalc,
       );
+      return Promise.resolve();
     },
   );
   cosineMatrixResult.details = {
@@ -172,8 +175,9 @@ async function main() {
   console.log("6. Hierarchical Clustering...");
   const clustering = new HierarchicalClustering(0.3);
   let clusters: Awaited<ReturnType<typeof clustering.cluster>> = [];
-  const clusterResult = await benchmark("Clustering", async () => {
+  const clusterResult = await benchmark("Clustering", () => {
     clusters = clustering.cluster(uniqueIds, structuralMatrix);
+    return Promise.resolve();
   });
   clusterResult.details = { clusters: clusters.length };
   results.push(clusterResult);

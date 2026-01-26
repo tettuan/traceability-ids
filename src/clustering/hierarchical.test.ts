@@ -91,8 +91,8 @@ Deno.test("HierarchicalClustering - three items with groups", () => {
 
   assertEquals(largeCluster !== undefined, true);
   assertEquals(smallCluster !== undefined, true);
-  assertEquals(largeCluster!.items.length, 2);
-  assertEquals(smallCluster!.items.length, 1);
+  if (largeCluster) assertEquals(largeCluster.items.length, 2);
+  if (smallCluster) assertEquals(smallCluster.items.length, 1);
 });
 
 Deno.test("HierarchicalClustering - threshold controls merging", () => {

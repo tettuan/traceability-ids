@@ -40,7 +40,7 @@ async function benchmark(
   };
 }
 
-async function main() {
+async function main(): Promise<void> {
   const inputDir = Deno.args[0];
   if (!inputDir) {
     console.error(

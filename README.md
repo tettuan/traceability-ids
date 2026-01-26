@@ -79,142 +79,147 @@ deno install --allow-read --allow-write jsr:@aidevtool/traceability-ids
 Or run directly without installation:
 
 ```bash
-deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids <input-dir> <output-file> [options]
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids [options] <input-dir>
 ```
 
 ## Usage
 
-### Basic Usage (Recommended)
+The CLI supports flexible argument order - options and input directory can be in any order.
+
+### Basic Usage
 
 ```bash
-# Output simple ID list (default)
-deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data ./output/ids.txt
+# Output to STDOUT (default)
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./docs
 
-# Example output:
-# req:apikey:hierarchy-9a2f4d#20251111a
-# req:apikey:vendor-mgmt-3b7e5c#20251111a
-# req:dashboard:login-display-a1b2c3#20251111
-# ...
+# Output to file
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./docs --output clusters.txt
+
+# Options can be in any order
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids \
+  --threshold 0.2 ./docs --output clusters.txt
 ```
 
-### Cluster Mode
-
-#### Simple ID List with Cluster Boundaries
+### Cluster Mode (Default)
 
 ```bash
+# Simple ID list (default format)
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data
+
 # IDs grouped by cluster
-deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data ./output/ids.txt \
-  --format simple-clustered
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data \
+  --format simple-clustered --output clusters.txt
 
-# Example output:
-# # Cluster 1 (15 unique IDs)
-# req:apikey:hierarchy-9a2f4d#20251111a
-# req:apikey:vendor-mgmt-3b7e5c#20251111a
-# ...
-#
-# # Cluster 2 (8 unique IDs)
-# req:dashboard:login-display-a1b2c3#20251111
-# ...
-```
-
-#### Scope-based Grouping (Recommended)
-
-```bash
-# Group IDs by scope using structural distance
-deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data ./output/ids.txt \
+# Scope-based grouping (recommended)
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data \
   --distance structural --threshold 0.3
-```
 
-#### Different Clustering Algorithms
-
-```bash
 # K-Means clustering with 5 clusters
-deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data ./output/ids.txt \
-  --algorithm kmeans --k 5
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data \
+  --algorithm kmeans --k 5 --format json
 
-# Density-based clustering (DBSCAN)
-deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data ./output/ids.txt \
+# DBSCAN clustering
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data \
   --algorithm dbscan --epsilon 0.3 --min-points 2
-```
 
-#### Different Output Formats
-
-```bash
-# JSON format (full structured data)
-deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data ./output/clusters.json \
-  --format json
-
-# Markdown format (human-readable)
-deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data ./output/clusters.md \
-  --format markdown
-
-# CSV format (spreadsheet compatible)
-deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data ./output/clusters.csv \
-  --format csv
+# Different output formats
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data --format json
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data --format markdown
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data --format csv
 ```
 
 ### Search Mode
 
-Find IDs similar to a specific query:
+Use the `/search` subpath for similarity search:
 
 ```bash
-# Find top 10 IDs similar to "security"
-deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data ./output/security.txt \
-  --mode search --query "security" --top 10
+# Output to STDOUT
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/search \
+  --query "security" --top 10 ./docs
 
-# Search with similarity scores
-deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data ./output/security.txt \
-  --mode search --query "security" --show-distance
+# Output to file with distance scores
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/search \
+  ./docs --query "security" --output result.txt --show-distance
 
 # Find IDs similar to a specific ID
-deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data ./output/similar.txt \
-  --mode search --query "req:apikey:security-4f7b2e#20251111a"
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/search \
+  --query "req:apikey:security-4f7b2e#20251111a" --top 20 ./data
 
-# Structural search (better for finding same-scope IDs)
-deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data ./output/similar.txt \
-  --mode search --query "encryption" --distance structural --top 20
+# Options can be in any order
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/search \
+  --top 5 --query "auth" ./data --distance cosine
+```
+
+### Extract Mode
+
+Use the `/extract` subpath to extract context around specific IDs:
+
+```bash
+# Output to STDOUT
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/extract \
+  --ids "req:apikey:security-4f7b2e#20251111a" ./docs
+
+# Output to file
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/extract \
+  ./docs --ids "req:apikey:security-4f7b2e#20251111a" --output context.md
+
+# Extract from ID list file
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/extract \
+  --ids-file ./ids.txt ./docs --before 5 --after 15
+
+# Custom context range and format
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/extract \
+  --before 5 ./data --ids "req:test:id-abc#v1" --format json
 ```
 
 ## Options
 
-### Global Options
+### Cluster Mode Options
 
-| Option       | Description                 | Default       | Values                                                  |
-| ------------ | --------------------------- | ------------- | ------------------------------------------------------- |
-| `--mode`     | Execution mode              | `cluster`     | `cluster`, `search`                                     |
-| `--distance` | Distance calculation method | `levenshtein` | `levenshtein`, `jaro-winkler`, `cosine`, `structural`   |
-| `--format`   | Output format               | `simple`      | `simple`, `simple-clustered`, `json`, `markdown`, `csv` |
-| `--help`     | Show help message           | -             | -                                                       |
+| Option         | Description                    | Default        | Values                                                  |
+| -------------- | ------------------------------ | -------------- | ------------------------------------------------------- |
+| `--output`     | Output file path               | STDOUT         | File path                                               |
+| `--distance`   | Distance calculation method    | `structural`   | `levenshtein`, `jaro-winkler`, `cosine`, `structural`   |
+| `--format`     | Output format                  | `simple`       | `simple`, `simple-clustered`, `json`, `markdown`, `csv` |
+| `--algorithm`  | Clustering algorithm           | `hierarchical` | `hierarchical`, `kmeans`, `dbscan`                      |
+| `--threshold`  | Threshold for hierarchical     | `0.3`          | Number                                                  |
+| `--k`          | Number of clusters for K-Means | `0`            | Number (0=auto)                                         |
+| `--epsilon`    | Neighborhood radius for DBSCAN | `0.3`          | Number                                                  |
+| `--min-points` | Minimum points for DBSCAN      | `2`            | Number                                                  |
+| `--help`       | Show help message              | -              | -                                                       |
 
-### Clustering Mode Options
+### Search Mode Options (`/search`)
 
-| Option         | Description                    | Default        | Values                             |
-| -------------- | ------------------------------ | -------------- | ---------------------------------- |
-| `--algorithm`  | Clustering algorithm           | `hierarchical` | `hierarchical`, `kmeans`, `dbscan` |
-| `--threshold`  | Threshold for hierarchical     | `10`           | Number (edit distance)             |
-| `--k`          | Number of clusters for K-Means | `0`            | Number (0=auto)                    |
-| `--epsilon`    | Neighborhood radius for DBSCAN | `0.3`          | Number                             |
-| `--min-points` | Minimum points for DBSCAN      | `2`            | Number                             |
+| Option            | Description               | Default  | Values                                                |
+| ----------------- | ------------------------- | -------- | ----------------------------------------------------- |
+| `--query`         | Search query (REQUIRED)   | -        | String                                                |
+| `--output`        | Output file path          | STDOUT   | File path                                             |
+| `--distance`      | Distance calculation      | `cosine` | `levenshtein`, `jaro-winkler`, `cosine`, `structural` |
+| `--top`           | Return only top N results | all      | Number                                                |
+| `--show-distance` | Include distance scores   | `false`  | Boolean                                               |
+| `--format`        | Output format             | `simple` | `simple`, `json`, `markdown`, `csv`                   |
 
-### Search Mode Options
+### Extract Mode Options (`/extract`)
 
-| Option            | Description               | Default | Values  |
-| ----------------- | ------------------------- | ------- | ------- |
-| `--query`         | Search query (REQUIRED)   | -       | String  |
-| `--top`           | Return only top N results | all     | Number  |
-| `--show-distance` | Include distance scores   | `false` | Boolean |
+| Option       | Description                    | Default    | Values                      |
+| ------------ | ------------------------------ | ---------- | --------------------------- |
+| `--ids`      | Space-separated IDs (REQUIRED) | -          | String                      |
+| `--ids-file` | Path to file with IDs          | -          | File path                   |
+| `--output`   | Output file path               | STDOUT     | File path                   |
+| `--before`   | Lines before target            | `3`        | Number (max: 50)            |
+| `--after`    | Lines after target             | `10`       | Number (max: 50)            |
+| `--format`   | Output format                  | `markdown` | `markdown`, `json`, `simple`|
 
 ## Distance Calculation Guide
 
 Choose the appropriate distance calculator for your use case:
 
-### Structural Distance (Recommended for Scope Grouping)
+### Structural Distance (Default, Recommended for Scope Grouping)
 
 **Best when you want to group IDs by scope**
 
 ```bash
-deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data ./output/ids.txt \
-  --distance structural --threshold 0.3
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data
 ```
 
 - Recognizes ID structure: `{level}:{scope}:{semantic}-{hash}#{version}`
@@ -223,12 +228,13 @@ deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data ./out
 - **Pros**: Clean grouping by scope
 - **Cons**: Depends on ID format
 
-### Levenshtein Distance (Default)
+### Levenshtein Distance
 
 **Compares strings by edit distance**
 
 ```bash
-deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data ./output/ids.txt
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data \
+  --distance levenshtein
 ```
 
 - Compares entire string character by character
@@ -242,7 +248,7 @@ deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data ./out
 **Emphasizes prefix matching**
 
 ```bash
-deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data ./output/ids.txt \
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data \
   --distance jaro-winkler
 ```
 
@@ -255,7 +261,7 @@ deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data ./out
 **N-gram based similarity**
 
 ```bash
-deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data ./output/ids.txt \
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data \
   --distance cosine
 ```
 
@@ -267,8 +273,8 @@ deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./data ./out
 
 | Purpose               | Distance      | Algorithm      | Options                        |
 | --------------------- | ------------- | -------------- | ------------------------------ |
-| Group by scope        | `structural`  | `hierarchical` | `--threshold 0.3`              |
-| General clustering    | `levenshtein` | `hierarchical` | `--threshold 10`               |
+| Group by scope        | `structural`  | `hierarchical` | (default)                      |
+| General clustering    | `levenshtein` | `hierarchical` | `--threshold 0.5`              |
 | Specify cluster count | any           | `kmeans`       | `--k 5`                        |
 | Remove noise          | any           | `dbscan`       | `--epsilon 0.3 --min-points 2` |
 

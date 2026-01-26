@@ -23,7 +23,7 @@ import type { ClusteringOptions } from "./cli/clustering-factory.ts";
 /**
  * 使用方法を表示
  */
-function showUsage() {
+function showUsage(): void {
   console.log(
     `Traceability IDs - Extract and cluster traceability IDs from markdown files
 
@@ -96,7 +96,7 @@ EXAMPLES:
 /**
  * メイン関数
  */
-async function main() {
+async function main(): Promise<void> {
   // 引数をパース
   const args = parseArgs(Deno.args, {
     string: [

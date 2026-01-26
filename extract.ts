@@ -20,7 +20,7 @@
 import { parseArgs } from "jsr:@std/cli@^1.0.9/parse-args";
 import { runExtractMode } from "./src/modes/extract.ts";
 
-async function main() {
+async function main(): Promise<void> {
   const args = parseArgs(Deno.args, {
     string: ["ids", "ids-file", "before", "after", "format", "output"],
     boolean: ["help"],
