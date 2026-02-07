@@ -1,10 +1,12 @@
 {
   "name": "@aidevtool/traceability-ids",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "exports": {
     ".": "./src/cli.ts",
     "./search": "./search.ts",
-    "./extract": "./extract.ts"
+    "./extract": "./extract.ts",
+    "./graph": "./graph.ts",
+    "./analyze": "./analyze.ts"
   },
   "tasks": {
     "dev": "deno run --allow-read --allow-write src/cli.ts",
@@ -15,6 +17,8 @@
     "example": "deno run --allow-read --allow-write src/cli.ts ./data --output ./tmp/clusters.txt --format simple-clustered",
     "example:search": "deno run --allow-read --allow-write search.ts ./data --query apikey --top 10 --show-distance --output ./tmp/search.txt",
     "example:extract": "deno run --allow-read --allow-write extract.ts ./data --ids 'req:apikey:security-4f7b2e#20251111a' --format markdown --output ./tmp/extract.md",
+    "example:graph": "deno run --allow-read --allow-write graph.ts ./data --output ./tmp/graph-3d.html",
+    "example:analyze": "deno run --allow-read --allow-write analyze.ts ./data --output ./tmp/analyze-report.md",
     "ci": "deno run -A jsr:@aidevtool/ci"
   },
   "imports": {

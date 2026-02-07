@@ -96,7 +96,7 @@ async function main() {
 
   if (!result.success) {
     console.error("Error:");
-    result.errors?.forEach(err => console.error(`  - ${err}`));
+    result.errors?.forEach((err) => console.error(`  - ${err}`));
     showUsage();
     Deno.exit(1);
   }
@@ -185,7 +185,7 @@ export function parseSearchArgs(args: string[]): ParseResult<SearchArgs> {
 
   logger.debug("Parsing search arguments", { args });
 
-  const parsed = parseArgs(args, { /* ... */ });
+  const parsed = parseArgs(args, {/* ... */});
 
   logger.debug("Parse result", { parsed });
 
@@ -200,7 +200,7 @@ export function parseSearchArgs(args: string[]): ParseResult<SearchArgs> {
     query: parsed.query,
   });
 
-  return { success: true, data: { /* ... */ } };
+  return { success: true, data: {/* ... */} };
 }
 ```
 
@@ -215,15 +215,18 @@ export function parseSearchArgs(args: string[]): ParseResult<SearchArgs> {
 ### 段階的な導入
 
 **Phase 1**: 1つのモード（search）でプロトタイプ実装
+
 - `src/cli/parsers/search-args.ts` を作成
 - 包括的なテストを追加
 - 既存のsearch.tsを更新
 
 **Phase 2**: 他のモードへの展開
+
 - extract, cluster モードにも同様の構造を適用
 - 共通バリデーション関数の抽出
 
 **Phase 3**: 共通化の促進
+
 - 共通のバリデーションロジックを `src/cli/parsers/validators.ts` に抽出
 - 型定義の整理とドキュメント化
 
@@ -232,12 +235,14 @@ export function parseSearchArgs(args: string[]): ParseResult<SearchArgs> {
 以下の条件を満たす場合、引数パーサーの独立化を推奨：
 
 ✅ **推奨**:
+
 - プロジェクトが成長し、CLIオプションが増加している
 - 複数の開発者が関与している
 - 引数パースのバグが頻繁に発生している
 - 包括的なテストカバレッジが求められている
 
 ❌ **不要**:
+
 - プロジェクトが小規模で安定している
 - CLIオプションの追加/変更が稀
 - 単一開発者のみ
@@ -248,10 +253,11 @@ export function parseSearchArgs(args: string[]): ParseResult<SearchArgs> {
 **現時点での推奨**: **段階的導入を検討**
 
 理由:
+
 1. ✅ プロジェクトは成長中（3つのモード、多数のオプション）
 2. ✅ テスト戦略を重視している（breakdownlogger導入済み）
 3. ✅ リファクタリング済み（責務分離が進んでいる）
-4. ⚠️  但し、過剰設計のリスクもある
+4. ⚠️ 但し、過剰設計のリスクもある
 
 **提案**: まずは1つのモード（search）で試験実装し、効果を検証してから全モードに展開する。テストカバレッジの向上と保守性の改善が確認できれば、継続して展開する価値がある。
 

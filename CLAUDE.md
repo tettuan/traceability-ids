@@ -1,3 +1,7 @@
+# 作業ルール
+
+- 作業開始時は、まず workflow skill (`/workflow`) を実行すること。
+
 # プロジェクト概要
 
 *.md ファイルのなかに存在する traceability idを抽出し、一覧化する。
