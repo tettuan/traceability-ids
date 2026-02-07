@@ -30,7 +30,7 @@ export function generateHTML(
   graphData: GraphData,
   options?: HTMLGenerationOptions,
 ): string {
-  const colorBy = options?.colorBy ?? "cluster";
+  const _colorBy = options?.colorBy ?? "cluster";
   const layout = options?.layout ?? "force";
   const title = options?.title ?? "Traceability ID - 3D Graph";
   const dataJson = JSON.stringify(graphData);

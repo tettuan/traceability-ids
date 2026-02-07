@@ -45,6 +45,18 @@ list sorted by similarity**. This enables:
   - Markdown - Human-readable format
   - CSV - Spreadsheet compatible
 
+- **3D Graph Visualization** (`/graph`)
+  - Interactive 3D force-directed graph
+  - MDS layout preserving distances
+  - Color by cluster, scope, or level
+  - Rectangle selection and keyboard navigation
+
+- **Document Analysis Report** (`/analyze`)
+  - Structure coverage and traceability chain analysis
+  - Version freshness and specification expansion rate
+  - Near-duplicate detection and cross-file duplication
+  - Gap analysis with improvement actions
+
 - **Pure TypeScript Implementation**
   - No external dependencies
   - Works with Deno
@@ -172,6 +184,55 @@ deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/extract \
   --before 5 ./data --ids "req:test:id-abc#v1" --format json
 ```
 
+### Graph Mode
+
+Use the `/graph` subpath to generate an interactive 3D visualization:
+
+```bash
+# Basic usage (force-directed layout)
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/graph ./data
+
+# Output to custom path
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/graph \
+  ./data --output tmp/my-graph.html
+
+# MDS layout with scope-based coloring
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/graph \
+  ./data --layout mds --color-by scope
+
+# Custom thresholds
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/graph \
+  ./data --threshold 0.5 --edge-threshold 0.7
+
+# DBSCAN clustering
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/graph \
+  ./data --algorithm dbscan --epsilon 0.4
+```
+
+### Analyze Mode
+
+Use the `/analyze` subpath to generate a document improvement report:
+
+```bash
+# Basic usage
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/analyze ./data
+
+# Custom output path
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/analyze \
+  ./data --output tmp/report.md
+
+# Fine-grained clustering for analysis
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/analyze \
+  ./data --threshold 0.2
+```
+
+The report analyzes 4 dimensions:
+
+1. **Structure** - Level x Scope coverage matrix and traceability chain completeness
+2. **Detail** - Specification expansion rate and version freshness
+3. **Duplication** - Near-duplicate detection and cross-file duplication
+4. **Gaps** - Missing levels, isolated scopes, and low-connectivity nodes
+
 ## Options
 
 ### Cluster Mode Options
@@ -209,6 +270,34 @@ deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/extract \
 | `--before`   | Lines before target            | `3`        | Number (max: 50)             |
 | `--after`    | Lines after target             | `10`       | Number (max: 50)             |
 | `--format`   | Output format                  | `markdown` | `markdown`, `json`, `simple` |
+
+### Graph Mode Options (`/graph`)
+
+| Option             | Description                 | Default             | Values                                                |
+| ------------------ | --------------------------- | ------------------- | ----------------------------------------------------- |
+| `--output`         | Output HTML file path       | `tmp/graph-3d.html` | File path                                             |
+| `--distance`       | Distance calculation method | `structural`        | `levenshtein`, `jaro-winkler`, `cosine`, `structural` |
+| `--algorithm`      | Clustering algorithm        | `hierarchical`      | `hierarchical`, `kmeans`, `dbscan`                    |
+| `--threshold`      | Clustering threshold        | `0.3`               | Number                                                |
+| `--edge-threshold` | Edge display threshold      | `0.5`               | Number (0-1)                                          |
+| `--color-by`       | Node coloring mode          | `cluster`           | `cluster`, `scope`, `level`                           |
+| `--layout`         | Graph layout algorithm      | `force`             | `force`, `mds`                                        |
+| `--k`              | K-Means cluster count       | `0` (auto)          | Number                                                |
+| `--epsilon`        | DBSCAN neighborhood radius  | `0.3`               | Number                                                |
+| `--min-points`     | DBSCAN minimum neighbors    | `2`                 | Number                                                |
+
+### Analyze Mode Options (`/analyze`)
+
+| Option             | Description                     | Default                 | Values                                                |
+| ------------------ | ------------------------------- | ----------------------- | ----------------------------------------------------- |
+| `--output`         | Output report file path         | `tmp/analyze-report.md` | File path                                             |
+| `--distance`       | Distance calculation method     | `structural`            | `levenshtein`, `jaro-winkler`, `cosine`, `structural` |
+| `--algorithm`      | Clustering algorithm            | `hierarchical`          | `hierarchical`, `kmeans`, `dbscan`                    |
+| `--threshold`      | Clustering threshold            | `0.3`                   | Number                                                |
+| `--edge-threshold` | Connectivity analysis threshold | `0.5`                   | Number                                                |
+| `--k`              | K-Means cluster count           | `0` (auto)              | Number                                                |
+| `--epsilon`        | DBSCAN neighborhood radius      | `0.3`                   | Number                                                |
+| `--min-points`     | DBSCAN minimum neighbors        | `2`                     | Number                                                |
 
 ## Distance Calculation Guide
 
@@ -294,10 +383,16 @@ deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids --help
 ├── LICENSE                  # MIT License
 ├── deno.json                # Deno configuration
 ├── jsr.json                 # JSR publication config
+├── search.ts                # Search mode entry point
+├── extract.ts               # Extract mode entry point
+├── graph.ts                 # Graph mode entry point
+├── analyze.ts               # Analyze mode entry point
 ├── data/                    # Sample data
 ├── docs/                    # Documentation
 │   ├── requirements.md      # Requirements
-│   └── architecture.md      # Architecture design
+│   ├── architecture.md      # Architecture design
+│   ├── graph-visualization.md  # Graph mode design
+│   └── analyze-report.md    # Analyze mode design
 ├── tmp/                     # Output directory (gitignored)
 └── src/                     # Source code
     ├── core/                # Core functionality
@@ -305,7 +400,7 @@ deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids --help
     │   ├── scanner.ts       # File scanner
     │   └── extractor.ts     # ID extractor
     ├── distance/            # Distance calculation
-    │   ├── calculator.ts    # Interface
+    │   ├── calculator.ts    # Interface & matrix creation
     │   ├── levenshtein.ts   # Levenshtein distance
     │   ├── jaro_winkler.ts  # Jaro-Winkler distance
     │   ├── cosine.ts        # Cosine similarity
@@ -317,9 +412,22 @@ deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids --help
     │   └── dbscan.ts        # DBSCAN clustering
     ├── search/              # Similarity search
     │   └── similarity.ts    # Search functions
+    ├── extract/             # Context extraction
+    │   ├── context.ts       # Context extraction logic
+    │   └── loader.ts        # ID loading utilities
+    ├── visualization/       # 3D graph visualization
+    │   ├── mds.ts           # Classical MDS algorithm
+    │   ├── graph_data.ts    # Graph data transformation
+    │   └── html_template.ts # HTML generation
+    ├── modes/               # Mode orchestration
+    │   ├── cluster.ts       # Cluster mode
+    │   ├── search.ts        # Search mode
+    │   ├── extract.ts       # Extract mode
+    │   ├── graph.ts         # Graph mode
+    │   └── analyze.ts       # Analyze mode
     ├── formatter/           # Output formatters
     │   └── formatter.ts     # JSON/Markdown/CSV formatters
-    ├── cli.ts               # CLI entry point
+    ├── cli.ts               # CLI entry point (cluster mode)
     └── mod.ts               # Library entry point
 ```
 
