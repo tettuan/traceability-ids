@@ -67,6 +67,9 @@ export function buildGraphData(
     }
   }
 
+  // Compute nearest-neighbor traversal order for tab navigation
+  const tabOrder = nearestNeighborOrder(distanceMatrix);
+
   // Build nodes
   const nodes: GraphNode[] = ids.map((id, i) => {
     const node: GraphNode = {
@@ -80,7 +83,7 @@ export function buildGraphData(
       filePath: id.filePath,
       lineNumber: id.lineNumber,
       clusterId: clusterMap.get(id.fullId) ?? 0,
-      tabId: i,
+      tabId: tabOrder[i],
     };
 
     if (mdsCoordinates && mdsCoordinates[i]) {
@@ -107,5 +110,40 @@ export function buildGraphData(
     }
   }
 
+  // Sort nodes array by tabId so Tab traversal follows adjacency order
+  nodes.sort((a, b) => a.tabId - b.tabId);
+
   return { nodes, links };
+}
+
+/**
+ * Compute nearest-neighbor traversal order.
+ * Starting from node 0, greedily visit the nearest unvisited node.
+ * Returns an array where result[originalIndex] = tabId (visit order).
+ */
+function nearestNeighborOrder(distanceMatrix: number[][]): number[] {
+  const n = distanceMatrix.length;
+  if (n === 0) return [];
+
+  const visited = new Array<boolean>(n).fill(false);
+  const order = new Array<number>(n);
+  let current = 0;
+  visited[current] = true;
+  order[current] = 0;
+
+  for (let step = 1; step < n; step++) {
+    let nearest = -1;
+    let nearestDist = Infinity;
+    for (let j = 0; j < n; j++) {
+      if (!visited[j] && distanceMatrix[current][j] < nearestDist) {
+        nearestDist = distanceMatrix[current][j];
+        nearest = j;
+      }
+    }
+    visited[nearest] = true;
+    order[nearest] = step;
+    current = nearest;
+  }
+
+  return order;
 }
