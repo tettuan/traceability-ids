@@ -341,3 +341,87 @@ export { searchSimilar } from "./search/similarity.ts";
  * ```
  */
 export { searchByKeyword } from "./search/similarity.ts";
+
+// ============================================================================
+// Visualization
+// ============================================================================
+
+export type {
+  /**
+   * Result of MDS computation with coordinates and eigenvalues
+   */
+  MDSResult,
+} from "./visualization/mds.ts";
+
+/**
+ * Classical Multidimensional Scaling algorithm
+ *
+ * Transforms a distance matrix into coordinates in lower-dimensional space
+ * while preserving pairwise distances.
+ *
+ * @param distanceMatrix - Symmetric n×n distance matrix
+ * @param dimensions - Number of output dimensions (default: 3)
+ * @returns MDSResult with coordinates and eigenvalues
+ *
+ * @example
+ * ```ts
+ * const result = classicalMDS(distanceMatrix, 3);
+ * console.log(result.coordinates[0]); // [x, y, z] for first item
+ * ```
+ */
+export { classicalMDS } from "./visualization/mds.ts";
+
+export type {
+  /**
+   * Complete graph data structure
+   */
+  GraphData,
+  /**
+   * A link in the 3D graph
+   */
+  GraphLink,
+  /**
+   * A node in the 3D graph
+   */
+  GraphNode,
+} from "./visualization/graph_data.ts";
+
+/**
+ * Build graph data from traceability IDs, distance matrix, and clusters
+ *
+ * @param ids - Array of traceability IDs
+ * @param distanceMatrix - n×n distance matrix
+ * @param clusters - Clustering results
+ * @param edgeThreshold - Maximum distance for edge creation
+ * @param mdsCoordinates - Optional fixed coordinates from MDS
+ * @returns GraphData with nodes and links
+ *
+ * @example
+ * ```ts
+ * const graphData = buildGraphData(ids, matrix, clusters, 0.5);
+ * console.log(`${graphData.nodes.length} nodes, ${graphData.links.length} links`);
+ * ```
+ */
+export { buildGraphData } from "./visualization/graph_data.ts";
+
+export type {
+  /**
+   * Options for HTML generation
+   */
+  HTMLGenerationOptions,
+} from "./visualization/html_template.ts";
+
+/**
+ * Generate a self-contained HTML file for 3D graph visualization
+ *
+ * @param graphData - Graph data with nodes and links
+ * @param options - Optional generation options
+ * @returns Complete HTML string
+ *
+ * @example
+ * ```ts
+ * const html = generateHTML(graphData, { colorBy: "cluster" });
+ * await Deno.writeTextFile("graph.html", html);
+ * ```
+ */
+export { generateHTML } from "./visualization/html_template.ts";
