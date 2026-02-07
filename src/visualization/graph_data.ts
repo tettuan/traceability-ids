@@ -21,6 +21,8 @@ export interface GraphNode {
   filePath: string;
   lineNumber: number;
   clusterId: number;
+  /** Sequential tab navigation index (0-based) */
+  tabId: number;
   /** MDS coordinates (optional, used when layout=mds) */
   fx?: number;
   fy?: number;
@@ -78,6 +80,7 @@ export function buildGraphData(
       filePath: id.filePath,
       lineNumber: id.lineNumber,
       clusterId: clusterMap.get(id.fullId) ?? 0,
+      tabId: i,
     };
 
     if (mdsCoordinates && mdsCoordinates[i]) {
