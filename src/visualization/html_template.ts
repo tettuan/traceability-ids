@@ -666,10 +666,10 @@ export function generateHTML(
       case 'ArrowDown': {
         if (e.shiftKey) {
           var dh = 0, dv = 0;
-          if (e.key === 'ArrowLeft')  dh = -ROTATE_STEP;
-          if (e.key === 'ArrowRight') dh =  ROTATE_STEP;
-          if (e.key === 'ArrowUp')    dv = -ROTATE_STEP;
-          if (e.key === 'ArrowDown')  dv =  ROTATE_STEP;
+          if (e.key === 'ArrowLeft')  dh =  ROTATE_STEP;
+          if (e.key === 'ArrowRight') dh = -ROTATE_STEP;
+          if (e.key === 'ArrowUp')    dv =  ROTATE_STEP;
+          if (e.key === 'ArrowDown')  dv = -ROTATE_STEP;
           rotateCamera(dh, dv);
         } else {
           var dx = 0, dy = 0;
