@@ -72,9 +72,10 @@ export function generateHTML(
   <div class="control-group">
     <label>Color by</label>
     <select id="color-by">
-      <option value="cluster"${colorBy === "cluster" ? " selected" : ""}>Cluster</option>
-      <option value="scope"${colorBy === "scope" ? " selected" : ""}>Scope</option>
-      <option value="level"${colorBy === "level" ? " selected" : ""}>Level</option>
+      <option value="edges" selected>Edges (gradient)</option>
+      <option value="cluster">Cluster</option>
+      <option value="scope">Scope</option>
+      <option value="level">Level</option>
     </select>
   </div>
   <div class="control-group">
@@ -89,6 +90,8 @@ export function generateHTML(
     </select>
   </div>
   <div class="shortcuts">
+    <strong>Shape = Level</strong><br>
+    &#9679; req &nbsp; &#9632; des &nbsp; &#9670; imp &nbsp; &#9650; tst<br><br>
     <kbd>+</kbd> <kbd>-</kbd> Zoom<br>
     <kbd>&larr;</kbd> <kbd>&rarr;</kbd> <kbd>&uarr;</kbd> <kbd>&darr;</kbd> Pan<br>
     <kbd>Shift</kbd>+<kbd>&larr;</kbd> <kbd>&rarr;</kbd> <kbd>&uarr;</kbd> <kbd>&darr;</kbd> Rotate<br>
@@ -106,6 +109,7 @@ export function generateHTML(
 <div id="node-indicator"></div>
 <div id="stats" id="stats-bar"></div>
 
+<script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
 <script src="https://unpkg.com/3d-force-graph@1"></script>
 <script>
 (function() {
@@ -131,13 +135,101 @@ export function generateHTML(
   var maxDist = 0;
   allLinks.forEach(function(l) { if (l.distance > maxDist) maxDist = l.distance; });
 
+  // --- Edge-based node coloring ---
+  var EDGE_COLOR_LIMIT = 8;
+  var nodeEdges = {};
+  allLinks.forEach(function(l) {
+    var sid = l.source, tid = l.target;
+    if (!nodeEdges[sid]) nodeEdges[sid] = [];
+    if (!nodeEdges[tid]) nodeEdges[tid] = [];
+    nodeEdges[sid].push(l.distance);
+    nodeEdges[tid].push(l.distance);
+  });
+  Object.keys(nodeEdges).forEach(function(id) {
+    nodeEdges[id].sort(function(a, b) { return a - b; });
+    if (nodeEdges[id].length > EDGE_COLOR_LIMIT) nodeEdges[id] = nodeEdges[id].slice(0, EDGE_COLOR_LIMIT);
+  });
+
+  function distToRGB(d) {
+    var t = maxDist > 0 ? d / maxDist : 0;
+    return [
+      Math.round(255 * (1 - t) + 80 * t),
+      Math.round(120 * (1 - t) + 140 * t),
+      Math.round(60 * t + 255 * t)
+    ];
+  }
+
+  var textureCache = {};
+  function getEdgeTexture(nodeId) {
+    if (textureCache[nodeId]) return textureCache[nodeId];
+    var dists = nodeEdges[nodeId] || [];
+    var size = 64;
+    var canvas = document.createElement('canvas');
+    canvas.width = size; canvas.height = size;
+    var ctx = canvas.getContext('2d');
+    var cx = size / 2, cy = size / 2, rad = size / 2;
+
+    if (dists.length === 0) {
+      ctx.fillStyle = '#888888';
+      ctx.beginPath(); ctx.arc(cx, cy, rad, 0, Math.PI * 2); ctx.fill();
+    } else if (dists.length === 1) {
+      var c = distToRGB(dists[0]);
+      ctx.fillStyle = 'rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')';
+      ctx.beginPath(); ctx.arc(cx, cy, rad, 0, Math.PI * 2); ctx.fill();
+    } else {
+      var grad = ctx.createConicGradient(0, cx, cy);
+      for (var i = 0; i < dists.length; i++) {
+        var c = distToRGB(dists[i]);
+        grad.addColorStop(i / dists.length, 'rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')');
+      }
+      var c0 = distToRGB(dists[0]);
+      grad.addColorStop(1, 'rgb(' + c0[0] + ',' + c0[1] + ',' + c0[2] + ')');
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.arc(cx, cy, rad, 0, Math.PI * 2); ctx.fill();
+    }
+    var tex = new THREE.CanvasTexture(canvas);
+    textureCache[nodeId] = tex;
+    return tex;
+  }
+
+  // --- Level-based geometry ---
+  var geoCache = {};
+  function getLevelGeometry(level) {
+    if (geoCache[level]) return geoCache[level];
+    var geo;
+    switch (level) {
+      case 'req': geo = new THREE.SphereGeometry(5, 16, 12); break;
+      case 'des': geo = new THREE.BoxGeometry(8, 8, 8); break;
+      case 'imp': geo = new THREE.OctahedronGeometry(5); break;
+      case 'tst': geo = new THREE.TetrahedronGeometry(6); break;
+      default:    geo = new THREE.SphereGeometry(5, 16, 12); break;
+    }
+    geoCache[level] = geo;
+    return geo;
+  }
+
+  // --- Node mesh management ---
+  var nodeMeshes = {};
+  function createNodeMesh(node, mode) {
+    var geo = getLevelGeometry(node.level);
+    var mat;
+    if (mode === 'edges') {
+      mat = new THREE.MeshBasicMaterial({ map: getEdgeTexture(node.id) });
+    } else {
+      mat = new THREE.MeshBasicMaterial({ color: getNodeColor(node, mode) });
+    }
+    var mesh = new THREE.Mesh(geo, mat);
+    nodeMeshes[node.id] = mesh;
+    return mesh;
+  }
+
   // Initialize graph
   var container = document.getElementById('graph-container');
   var graph = ForceGraph3D()(container)
     .graphData({ nodes: rawData.nodes, links: rawData.links })
     .nodeLabel(function(n) { return n.fullId; })
-    .nodeColor(function(n) { return getNodeColor(n, '${colorBy}'); })
-    .nodeVal(4)
+    .nodeThreeObject(function(n) { return createNodeMesh(n, currentColorMode); })
+    .nodeThreeObjectExtend(false)
     .linkWidth(function(l) {
       var t = maxDist > 0 ? l.distance / maxDist : 0;
       return 3 * (1 - t) + 0.2;
@@ -155,22 +247,23 @@ export function generateHTML(
     .onNodeClick(function(node) { showDetail(node); });
 
   // ---- Tab navigation state ----
-  var currentColorMode = '${colorBy}';
+  var currentColorMode = 'edges';
   var focusedTabId = -1;  // -1 means no node focused
   var nodeIndicator = document.getElementById('node-indicator');
 
   function focusNode(tabId) {
     if (rawData.nodes.length === 0) return;
+    clearFocus();
     focusedTabId = ((tabId % rawData.nodes.length) + rawData.nodes.length) % rawData.nodes.length;
     var node = rawData.nodes[focusedTabId];
 
-    // Update node colors to highlight focused node
-    graph.nodeColor(function(n) {
-      return n.tabId === focusedTabId ? '#ffffff' : getNodeColor(n, currentColorMode);
-    });
-    graph.nodeVal(function(n) {
-      return n.tabId === focusedTabId ? 10 : 4;
-    });
+    // Highlight focused mesh
+    var mesh = nodeMeshes[node.id];
+    if (mesh) {
+      mesh.__origMat = mesh.material;
+      mesh.material = new THREE.MeshBasicMaterial({ color: 0xffffff });
+      mesh.scale.set(1.8, 1.8, 1.8);
+    }
 
     // Show indicator
     nodeIndicator.textContent = (focusedTabId + 1) + ' / ' + rawData.nodes.length + '  ' + node.fullId;
@@ -181,8 +274,6 @@ export function generateHTML(
 
     // Move camera to focus on this node
     var dist = 150;
-    var camera = graph.camera();
-    var ctrl = graph.controls();
     graph.cameraPosition(
       { x: node.x + dist, y: node.y + dist * 0.3, z: node.z + dist },
       { x: node.x, y: node.y, z: node.z },
@@ -191,9 +282,15 @@ export function generateHTML(
   }
 
   function clearFocus() {
+    if (focusedTabId >= 0) {
+      var prev = rawData.nodes[focusedTabId];
+      var mesh = prev ? nodeMeshes[prev.id] : null;
+      if (mesh && mesh.__origMat) {
+        mesh.material = mesh.__origMat;
+        mesh.scale.set(1, 1, 1);
+      }
+    }
     focusedTabId = -1;
-    graph.nodeColor(function(n) { return getNodeColor(n, currentColorMode); });
-    graph.nodeVal(4);
     nodeIndicator.style.display = 'none';
   }
 
@@ -262,7 +359,8 @@ export function generateHTML(
   document.getElementById('color-by').addEventListener('change', function() {
     currentColorMode = this.value;
     clearFocus();
-    graph.nodeColor(function(n) { return getNodeColor(n, currentColorMode); });
+    nodeMeshes = {};
+    graph.nodeThreeObject(function(n) { return createNodeMesh(n, currentColorMode); });
   });
 
   // Layout mode
