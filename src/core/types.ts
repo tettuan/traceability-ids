@@ -213,3 +213,82 @@ export interface ContextExtractionResult {
   /** IDs that were not found in any file */
   notFound: string[];
 }
+
+// ============================================================================
+// List Mode Types
+// ============================================================================
+
+/**
+ * A single occurrence of a traceability ID in a file
+ *
+ * @example
+ * ```ts
+ * const occurrence: IdOccurrence = {
+ *   filePath: "/path/to/file.md",
+ *   lineNumber: 42
+ * };
+ * ```
+ */
+export interface IdOccurrence {
+  /** Absolute path to the file where this ID was found */
+  filePath: string;
+  /** Line number in the file (1-indexed) */
+  lineNumber: number;
+}
+
+/**
+ * A single entry in the ID index, grouping all occurrences of one ID
+ *
+ * @example
+ * ```ts
+ * const entry: IdIndexEntry = {
+ *   fullId: "req:apikey:security-4f7b2e#20251111a",
+ *   level: "req",
+ *   scope: "apikey",
+ *   semantic: "security",
+ *   hash: "4f7b2e",
+ *   version: "20251111a",
+ *   occurrences: [
+ *     { filePath: "/docs/req.md", lineNumber: 10 },
+ *     { filePath: "/docs/spec.md", lineNumber: 25 }
+ *   ]
+ * };
+ * ```
+ */
+export interface IdIndexEntry {
+  /** The complete ID string */
+  fullId: string;
+  /** The level component */
+  level: string;
+  /** The scope component */
+  scope: string;
+  /** The semantic component */
+  semantic: string;
+  /** The hash component */
+  hash: string;
+  /** The version component */
+  version: string;
+  /** All locations where this ID appears */
+  occurrences: IdOccurrence[];
+}
+
+/**
+ * Complete index of all traceability IDs with occurrence information
+ *
+ * @example
+ * ```ts
+ * const index: IdIndex = {
+ *   totalUniqueIds: 858,
+ *   totalOccurrences: 3024,
+ *   entries: [entry1, entry2, ...]
+ * };
+ * ```
+ */
+export interface IdIndex {
+  /** Number of unique IDs */
+  totalUniqueIds: number;
+  /** Total number of occurrences across all files */
+  totalOccurrences: number;
+  /** Entries grouped by unique fullId */
+  entries: IdIndexEntry[];
+}

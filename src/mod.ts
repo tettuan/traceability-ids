@@ -49,6 +49,18 @@ export type {
    */
   ClusteringResult,
   /**
+   * Complete index of all traceability IDs with occurrence information
+   */
+  IdIndex,
+  /**
+   * A single entry in the ID index with grouped occurrences
+   */
+  IdIndexEntry,
+  /**
+   * A single occurrence of a traceability ID in a file
+   */
+  IdOccurrence,
+  /**
    * A single item in similarity search results
    */
   SimilarityItem,
@@ -437,6 +449,13 @@ export type {
   AnalyzeModeOptions,
 } from "./modes/analyze.ts";
 
+export type {
+  /**
+   * Options for running list mode
+   */
+  ListModeOptions,
+} from "./modes/list.ts";
+
 /**
  * Run document analysis and generate improvement report
  *
@@ -458,3 +477,24 @@ export type {
  * ```
  */
 export { runAnalyzeMode } from "./modes/analyze.ts";
+
+/**
+ * Run list mode to extract all IDs with occurrence information
+ *
+ * Scans markdown files, groups IDs by fullId, and outputs a structured
+ * index with all file locations for each unique ID.
+ *
+ * @param options - List mode options
+ *
+ * @example
+ * ```ts
+ * await runListMode({
+ *   inputDir: "./data",
+ *   outputFile: "./tmp/id-index.json",
+ *   format: "json",
+ *   sort: "fullId",
+ *   batchSize: 0,
+ * });
+ * ```
+ */
+export { runListMode } from "./modes/list.ts";

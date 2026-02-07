@@ -51,6 +51,12 @@ list sorted by similarity**. This enables:
   - Color by cluster, scope, or level
   - Rectangle selection and keyboard navigation
 
+- **ID Index / Listing** (`/list`)
+  - Extract all IDs with occurrence information (file + line)
+  - JSON, simple, and CSV output formats
+  - Sort by fullId, scope, level, or occurrence count
+  - Batch splitting for large datasets
+
 - **Document Analysis Report** (`/analyze`)
   - Structure coverage and traceability chain analysis
   - Version freshness and specification expansion rate
@@ -209,6 +215,31 @@ deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/graph \
   ./data --algorithm dbscan --epsilon 0.4
 ```
 
+### List Mode
+
+Use the `/list` subpath to extract all IDs with occurrence information:
+
+```bash
+# JSON output to stdout (default)
+deno run --allow-read jsr:@aidevtool/traceability-ids/list ./data
+
+# Write to file
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/list \
+  ./data --output tmp/id-index.json
+
+# Simple unique ID list
+deno run --allow-read jsr:@aidevtool/traceability-ids/list \
+  ./data --format simple
+
+# Sort by scope, CSV format
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/list \
+  ./data --format csv --sort scope --output tmp/ids.csv
+
+# Batch split (100 IDs per file)
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/list \
+  ./data --output tmp/ids.json --batch-size 100
+```
+
 ### Analyze Mode
 
 Use the `/analyze` subpath to generate a document improvement report:
@@ -285,6 +316,15 @@ The report analyzes 4 dimensions:
 | `--k`              | K-Means cluster count       | `0` (auto)          | Number                                                |
 | `--epsilon`        | DBSCAN neighborhood radius  | `0.3`               | Number                                                |
 | `--min-points`     | DBSCAN minimum neighbors    | `2`                 | Number                                                |
+
+### List Mode Options (`/list`)
+
+| Option         | Description        | Default  | Values                              |
+| -------------- | ------------------ | -------- | ----------------------------------- |
+| `--output`     | Output file path   | STDOUT   | File path                           |
+| `--format`     | Output format      | `json`   | `json`, `simple`, `csv`             |
+| `--sort`       | Sort order         | `fullId` | `fullId`, `scope`, `level`, `count` |
+| `--batch-size` | IDs per batch file | `0`      | Number (0 = no split)               |
 
 ### Analyze Mode Options (`/analyze`)
 
@@ -387,12 +427,14 @@ deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids --help
 ├── extract.ts               # Extract mode entry point
 ├── graph.ts                 # Graph mode entry point
 ├── analyze.ts               # Analyze mode entry point
+├── list.ts                  # List mode entry point
 ├── data/                    # Sample data
 ├── docs/                    # Documentation
 │   ├── requirements.md      # Requirements
 │   ├── architecture.md      # Architecture design
 │   ├── graph-visualization.md  # Graph mode design
-│   └── analyze-report.md    # Analyze mode design
+│   ├── analyze-report.md    # Analyze mode design
+│   └── list-mode.md         # List mode design
 ├── tmp/                     # Output directory (gitignored)
 └── src/                     # Source code
     ├── core/                # Core functionality
@@ -412,6 +454,8 @@ deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids --help
     │   └── dbscan.ts        # DBSCAN clustering
     ├── search/              # Similarity search
     │   └── similarity.ts    # Search functions
+    ├── list/                # ID listing/indexing
+    │   └── aggregator.ts    # Occurrence aggregation
     ├── extract/             # Context extraction
     │   ├── context.ts       # Context extraction logic
     │   └── loader.ts        # ID loading utilities
@@ -424,9 +468,11 @@ deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids --help
     │   ├── search.ts        # Search mode
     │   ├── extract.ts       # Extract mode
     │   ├── graph.ts         # Graph mode
-    │   └── analyze.ts       # Analyze mode
+    │   ├── analyze.ts       # Analyze mode
+    │   └── list.ts          # List mode
     ├── formatter/           # Output formatters
-    │   └── formatter.ts     # JSON/Markdown/CSV formatters
+    │   ├── formatter.ts     # JSON/Markdown/CSV formatters
+    │   └── list_formatter.ts # List mode formatters
     ├── cli.ts               # CLI entry point (cluster mode)
     └── mod.ts               # Library entry point
 ```
