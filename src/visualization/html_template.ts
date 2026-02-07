@@ -62,10 +62,18 @@ export function generateHTML(
   #stats { position: absolute; bottom: 12px; left: 12px; background: rgba(20,20,40,0.85); padding: 8px 14px; border-radius: 6px; z-index: 10; font-size: 12px; color: #889; }
   .shortcuts { margin-top: 6px; padding-top: 8px; border-top: 1px solid #334; font-size: 11px; color: #778; line-height: 1.6; }
   .shortcuts kbd { background: #1a1a2e; border: 1px solid #445; border-radius: 3px; padding: 1px 5px; font-family: monospace; font-size: 11px; color: #aab; }
+  #select-rect { position: absolute; border: 2px solid #8af; background: rgba(138,170,255,0.15); pointer-events: none; z-index: 20; display: none; }
+  #reset-selection { display: none; width: 100%; margin-top: 8px; padding: 6px 0; background: #e17055; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; }
+  #reset-selection:hover { background: #d63031; }
+  #mode-indicator { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); background: rgba(138,170,255,0.85); color: #fff; padding: 10px 24px; border-radius: 8px; font-size: 16px; font-weight: bold; z-index: 30; display: none; pointer-events: none; }
+  body.select-mode { cursor: crosshair; }
+  body.select-mode #graph-container { pointer-events: none; }
 </style>
 </head>
 <body>
 <div id="graph-container"></div>
+<div id="select-rect"></div>
+<div id="mode-indicator">SELECT MODE</div>
 
 <div id="controls">
   <h3>Controls</h3>
@@ -96,8 +104,10 @@ export function generateHTML(
     <kbd>&larr;</kbd> <kbd>&rarr;</kbd> <kbd>&uarr;</kbd> <kbd>&darr;</kbd> Pan<br>
     <kbd>Shift</kbd>+<kbd>&larr;</kbd> <kbd>&rarr;</kbd> <kbd>&uarr;</kbd> <kbd>&darr;</kbd> Rotate<br>
     <kbd>Tab</kbd> Next node / <kbd>Shift</kbd>+<kbd>Tab</kbd> Prev<br>
-    <kbd>&#8984;</kbd>+<kbd>Enter</kbd> Center nearest node
+    <kbd>&#8984;</kbd>+<kbd>Enter</kbd> Center nearest node<br>
+    <kbd>S</kbd> Toggle select mode, then Drag
   </div>
+  <button id="reset-selection">Reset Selection</button>
 </div>
 
 <div id="detail-panel">
@@ -136,7 +146,7 @@ export function generateHTML(
   allLinks.forEach(function(l) { if (l.distance > maxDist) maxDist = l.distance; });
 
   // --- Edge-based node coloring ---
-  var EDGE_COLOR_LIMIT = 8;
+  var EDGE_COLOR_LIMIT = 12;
   var nodeEdges = {};
   allLinks.forEach(function(l) {
     var sid = l.source, tid = l.target;
@@ -150,20 +160,24 @@ export function generateHTML(
     if (nodeEdges[id].length > EDGE_COLOR_LIMIT) nodeEdges[id] = nodeEdges[id].slice(0, EDGE_COLOR_LIMIT);
   });
 
-  function distToRGB(d) {
+  // HSL-based rainbow spectrum: close=red(0) → yellow(55) → green(120) → cyan(180) → blue(230) → purple(290)
+  function distToHSL(d) {
     var t = maxDist > 0 ? d / maxDist : 0;
-    return [
-      Math.round(255 * (1 - t) + 80 * t),
-      Math.round(120 * (1 - t) + 140 * t),
-      Math.round(60 * t + 255 * t)
-    ];
+    var h = Math.round(t * 290);
+    return 'hsl(' + h + ',90%,58%)';
+  }
+
+  function distToHSLA(d, a) {
+    var t = maxDist > 0 ? d / maxDist : 0;
+    var h = Math.round(t * 290);
+    return 'hsla(' + h + ',90%,58%,' + a + ')';
   }
 
   var textureCache = {};
   function getEdgeTexture(nodeId) {
     if (textureCache[nodeId]) return textureCache[nodeId];
     var dists = nodeEdges[nodeId] || [];
-    var size = 64;
+    var size = 128;
     var canvas = document.createElement('canvas');
     canvas.width = size; canvas.height = size;
     var ctx = canvas.getContext('2d');
@@ -171,21 +185,31 @@ export function generateHTML(
 
     if (dists.length === 0) {
       ctx.fillStyle = '#888888';
-      ctx.beginPath(); ctx.arc(cx, cy, rad, 0, Math.PI * 2); ctx.fill();
+      ctx.fillRect(0, 0, size, size);
     } else if (dists.length === 1) {
-      var c = distToRGB(dists[0]);
-      ctx.fillStyle = 'rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')';
-      ctx.beginPath(); ctx.arc(cx, cy, rad, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = distToHSL(dists[0]);
+      ctx.fillRect(0, 0, size, size);
     } else {
-      var grad = ctx.createConicGradient(0, cx, cy);
-      for (var i = 0; i < dists.length; i++) {
-        var c = distToRGB(dists[i]);
-        grad.addColorStop(i / dists.length, 'rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')');
+      // Vertical linear gradient: top (close/warm) → bottom (far/cool)
+      // Position stops by cumulative probability distribution of distances
+      var grad = ctx.createLinearGradient(0, 0, 0, size);
+      var n = dists.length;
+      var dMin = dists[0], dMax = dists[n - 1];
+      var range = dMax - dMin;
+      for (var i = 0; i < n; i++) {
+        // Map each distance to its position in the CDF (0→1)
+        var pos = range > 0 ? (dists[i] - dMin) / range : i / (n - 1);
+        grad.addColorStop(pos, distToHSL(dists[i]));
+        // Add midpoint blend between consecutive stops
+        if (i < n - 1) {
+          var midPos = range > 0
+            ? ((dists[i] + dists[i + 1]) / 2 - dMin) / range
+            : (i + 0.5) / (n - 1);
+          grad.addColorStop(midPos, distToHSL((dists[i] + dists[i + 1]) / 2));
+        }
       }
-      var c0 = distToRGB(dists[0]);
-      grad.addColorStop(1, 'rgb(' + c0[0] + ',' + c0[1] + ',' + c0[2] + ')');
       ctx.fillStyle = grad;
-      ctx.beginPath(); ctx.arc(cx, cy, rad, 0, Math.PI * 2); ctx.fill();
+      ctx.fillRect(0, 0, size, size);
     }
     var tex = new THREE.CanvasTexture(canvas);
     textureCache[nodeId] = tex;
@@ -227,7 +251,14 @@ export function generateHTML(
   var container = document.getElementById('graph-container');
   var graph = ForceGraph3D()(container)
     .graphData({ nodes: rawData.nodes, links: rawData.links })
-    .nodeLabel(function(n) { return n.fullId; })
+    .nodeLabel(function(n) {
+      return '<div style="background:rgba(20,20,40,0.95);padding:8px 12px;border-radius:6px;font-size:12px;line-height:1.6;color:#e0e0e0;max-width:320px;pointer-events:none">'
+        + '<div style="color:#8af;font-weight:bold;margin-bottom:4px">' + escapeHtml(n.fullId) + '</div>'
+        + '<span style="color:#889">Level:</span> ' + escapeHtml(n.level)
+        + ' &nbsp; <span style="color:#889">Scope:</span> ' + escapeHtml(n.scope) + '<br>'
+        + '<span style="color:#889">File:</span> ' + escapeHtml(n.filePath) + ':' + n.lineNumber
+        + '</div>';
+    })
     .nodeThreeObject(function(n) { return createNodeMesh(n, currentColorMode); })
     .nodeThreeObjectExtend(false)
     .linkWidth(function(l) {
@@ -236,12 +267,8 @@ export function generateHTML(
     })
     .linkOpacity(0.6)
     .linkColor(function(l) {
-      var t = maxDist > 0 ? l.distance / maxDist : 0;
-      var r = Math.round(255 * (1 - t) + 80 * t);
-      var g = Math.round(120 * (1 - t) + 140 * t);
-      var b = Math.round(60 * t + 255 * t);
-      var a = 0.7 * (1 - t) + 0.15;
-      return 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')';
+      var a = maxDist > 0 ? 0.7 * (1 - l.distance / maxDist) + 0.15 : 0.5;
+      return distToHSLA(l.distance, a);
     })
     .backgroundColor('#0a0a1a')
     .onNodeClick(function(node) { showDetail(node); });
@@ -431,6 +458,145 @@ export function generateHTML(
     return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
+  // ---- Rectangle selection (S key toggle mode) ----
+  var selectRect = document.getElementById('select-rect');
+  var resetBtn = document.getElementById('reset-selection');
+  var modeIndicator = document.getElementById('mode-indicator');
+  var selectMode = false;
+  var isDragging = false;
+  var selStart = { x: 0, y: 0 };
+  var isFiltered = false;
+  var fullNodes = rawData.nodes.slice();
+  var fullLinks = allLinks.slice();
+
+  function setSelectMode(on) {
+    selectMode = on;
+    if (on) {
+      document.body.classList.add('select-mode');
+      graph.controls().enabled = false;
+      modeIndicator.style.display = 'block';
+    } else {
+      document.body.classList.remove('select-mode');
+      graph.controls().enabled = true;
+      modeIndicator.style.display = 'none';
+      isDragging = false;
+      selectRect.style.display = 'none';
+    }
+  }
+
+  function projectToScreen(node) {
+    var camera = graph.camera();
+    var renderer = graph.renderer();
+    var w = renderer.domElement.width;
+    var h = renderer.domElement.height;
+    var vx = node.x, vy = node.y, vz = node.z;
+    if (typeof vx !== 'number') return null;
+    var mv = camera.matrixWorldInverse.elements;
+    var pj = camera.projectionMatrix.elements;
+    var ex = mv[0]*vx + mv[4]*vy + mv[8]*vz + mv[12];
+    var ey = mv[1]*vx + mv[5]*vy + mv[9]*vz + mv[13];
+    var ez = mv[2]*vx + mv[6]*vy + mv[10]*vz + mv[14];
+    var ew = mv[3]*vx + mv[7]*vy + mv[11]*vz + mv[15];
+    var px = pj[0]*ex + pj[4]*ey + pj[8]*ez + pj[12]*ew;
+    var py = pj[1]*ex + pj[5]*ey + pj[9]*ez + pj[13]*ew;
+    var pw = pj[3]*ex + pj[7]*ey + pj[11]*ez + pj[15]*ew;
+    if (pw <= 0) return null;
+    var dpr = window.devicePixelRatio || 1;
+    var sx = (px / pw * 0.5 + 0.5) * w / dpr;
+    var sy = (-py / pw * 0.5 + 0.5) * h / dpr;
+    return { x: sx, y: sy };
+  }
+
+  // In select mode, capture mouse on document (graph container has pointer-events:none)
+  document.addEventListener('mousedown', function(e) {
+    if (!selectMode || e.target.closest('#controls') || e.target.closest('#detail-panel')) return;
+    isDragging = true;
+    selStart = { x: e.clientX, y: e.clientY };
+    selectRect.style.left = e.clientX + 'px';
+    selectRect.style.top = e.clientY + 'px';
+    selectRect.style.width = '0px';
+    selectRect.style.height = '0px';
+    selectRect.style.display = 'block';
+    modeIndicator.style.display = 'none';
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', function(e) {
+    if (!isDragging) return;
+    var x = Math.min(e.clientX, selStart.x);
+    var y = Math.min(e.clientY, selStart.y);
+    var w = Math.abs(e.clientX - selStart.x);
+    var h = Math.abs(e.clientY - selStart.y);
+    selectRect.style.left = x + 'px';
+    selectRect.style.top = y + 'px';
+    selectRect.style.width = w + 'px';
+    selectRect.style.height = h + 'px';
+  });
+
+  document.addEventListener('mouseup', function(e) {
+    if (!isDragging) return;
+    isDragging = false;
+    selectRect.style.display = 'none';
+
+    var rx1 = Math.min(e.clientX, selStart.x);
+    var ry1 = Math.min(e.clientY, selStart.y);
+    var rx2 = Math.max(e.clientX, selStart.x);
+    var ry2 = Math.max(e.clientY, selStart.y);
+
+    // Exit select mode after drag
+    setSelectMode(false);
+
+    // Ignore tiny drags (< 5px)
+    if (rx2 - rx1 < 5 && ry2 - ry1 < 5) return;
+
+    // Find nodes within the rectangle
+    var sourceNodes = isFiltered ? graph.graphData().nodes : fullNodes;
+    var selected = [];
+    var selectedIds = {};
+    sourceNodes.forEach(function(node) {
+      var sp = projectToScreen(node);
+      if (sp && sp.x >= rx1 && sp.x <= rx2 && sp.y >= ry1 && sp.y <= ry2) {
+        selected.push(node);
+        selectedIds[node.id] = true;
+      }
+    });
+
+    if (selected.length === 0) return;
+
+    // Filter links to only those between selected nodes
+    var selectedLinks = fullLinks.filter(function(l) {
+      var sid = typeof l.source === 'object' ? l.source.id : l.source;
+      var tid = typeof l.target === 'object' ? l.target.id : l.target;
+      return selectedIds[sid] && selectedIds[tid];
+    });
+
+    // Apply threshold filter
+    selectedLinks = selectedLinks.filter(function(l) { return l.distance <= currentThreshold; });
+
+    isFiltered = true;
+    resetBtn.style.display = 'block';
+    clearFocus();
+    graph.graphData({ nodes: selected, links: selectedLinks });
+    updateStats(selected.length, selectedLinks.length);
+  });
+
+  resetBtn.addEventListener('click', function() { resetSelection(); });
+
+  function resetSelection() {
+    if (!isFiltered) return;
+    isFiltered = false;
+    resetBtn.style.display = 'none';
+    clearFocus();
+    var filtered = fullLinks.filter(function(l) { return l.distance <= currentThreshold; });
+    graph.graphData({ nodes: fullNodes, links: filtered });
+    rawData.nodes = fullNodes;
+    updateStats(fullNodes.length, filtered.length);
+    // Re-apply MDS if in MDS mode
+    if (document.getElementById('layout-mode').value === 'mds') {
+      applyMDS();
+    }
+  }
+
   // ---- Keyboard shortcuts ----
   var ZOOM_STEP = 0.85;
   var PAN_STEP = 20;
@@ -460,8 +626,19 @@ export function generateHTML(
         break;
       }
       case 'Escape': {
-        clearFocus();
-        document.getElementById('detail-panel').style.display = 'none';
+        if (selectMode) {
+          setSelectMode(false);
+        } else {
+          clearFocus();
+          document.getElementById('detail-panel').style.display = 'none';
+          resetSelection();
+        }
+        e.preventDefault();
+        break;
+      }
+      case 's':
+      case 'S': {
+        setSelectMode(!selectMode);
         e.preventDefault();
         break;
       }
