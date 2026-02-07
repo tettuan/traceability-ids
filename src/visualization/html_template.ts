@@ -573,11 +573,29 @@ export function generateHTML(
     // Apply threshold filter
     selectedLinks = selectedLinks.filter(function(l) { return l.distance <= currentThreshold; });
 
+    // Shift selected nodes so their centroid is at origin (0,0,0)
+    var cx = 0, cy = 0, cz = 0;
+    selected.forEach(function(n) { cx += n.x || 0; cy += n.y || 0; cz += n.z || 0; });
+    cx /= selected.length; cy /= selected.length; cz /= selected.length;
+    selected.forEach(function(n) {
+      n.x = (n.x || 0) - cx;
+      n.y = (n.y || 0) - cy;
+      n.z = (n.z || 0) - cz;
+    });
+
     isFiltered = true;
     resetBtn.style.display = 'block';
     clearFocus();
     graph.graphData({ nodes: selected, links: selectedLinks });
     updateStats(selected.length, selectedLinks.length);
+
+    // Camera looks at origin where centroid now sits
+    var dist = 150;
+    graph.cameraPosition(
+      { x: dist, y: dist * 0.3, z: dist },
+      { x: 0, y: 0, z: 0 },
+      600
+    );
   });
 
   resetBtn.addEventListener('click', function() { resetSelection(); });
