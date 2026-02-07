@@ -127,6 +127,10 @@ export function generateHTML(
     return '#888';
   }
 
+  // Compute max distance for edge styling
+  var maxDist = 0;
+  allLinks.forEach(function(l) { if (l.distance > maxDist) maxDist = l.distance; });
+
   // Initialize graph
   var container = document.getElementById('graph-container');
   var graph = ForceGraph3D()(container)
@@ -134,9 +138,19 @@ export function generateHTML(
     .nodeLabel(function(n) { return n.fullId; })
     .nodeColor(function(n) { return getNodeColor(n, '${colorBy}'); })
     .nodeVal(4)
-    .linkWidth(function(l) { return 1 - l.distance; })
-    .linkOpacity(0.4)
-    .linkColor(function() { return 'rgba(150,180,255,0.3)'; })
+    .linkWidth(function(l) {
+      var t = maxDist > 0 ? l.distance / maxDist : 0;
+      return 3 * (1 - t) + 0.2;
+    })
+    .linkOpacity(0.6)
+    .linkColor(function(l) {
+      var t = maxDist > 0 ? l.distance / maxDist : 0;
+      var r = Math.round(255 * (1 - t) + 80 * t);
+      var g = Math.round(120 * (1 - t) + 140 * t);
+      var b = Math.round(60 * t + 255 * t);
+      var a = 0.7 * (1 - t) + 0.15;
+      return 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')';
+    })
     .backgroundColor('#0a0a1a')
     .onNodeClick(function(node) { showDetail(node); });
 
@@ -232,8 +246,6 @@ export function generateHTML(
   updateStats(rawData.nodes.length, rawData.links.length);
 
   // Edge threshold slider
-  var maxDist = 0;
-  allLinks.forEach(function(l) { if (l.distance > maxDist) maxDist = l.distance; });
   var slider = document.getElementById('edge-threshold');
   slider.max = Math.ceil(maxDist * 100) / 100 || 1;
   var currentThreshold = maxDist || 1;
