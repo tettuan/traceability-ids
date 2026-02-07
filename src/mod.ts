@@ -425,3 +425,36 @@ export type {
  * ```
  */
 export { generateHTML } from "./visualization/html_template.ts";
+
+// ============================================================================
+// Analysis
+// ============================================================================
+
+export type {
+  /**
+   * Options for running analyze mode
+   */
+  AnalyzeModeOptions,
+} from "./modes/analyze.ts";
+
+/**
+ * Run document analysis and generate improvement report
+ *
+ * Analyzes traceability IDs for structure, detail level, duplication,
+ * and gap coverage, then generates a Markdown report.
+ *
+ * @param options - Analysis options
+ *
+ * @example
+ * ```ts
+ * await runAnalyzeMode({
+ *   inputDir: "./data",
+ *   outputFile: "./tmp/report.md",
+ *   distance: "structural",
+ *   algorithm: "hierarchical",
+ *   edgeThreshold: 0.5,
+ *   clusteringOptions: { threshold: 0.3, k: 0, epsilon: 0.3, minPoints: 2 },
+ * });
+ * ```
+ */
+export { runAnalyzeMode } from "./modes/analyze.ts";

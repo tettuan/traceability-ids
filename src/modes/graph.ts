@@ -1,4 +1,4 @@
-import { extractIds } from "../core/extractor.ts";
+import { deduplicateIds, extractIds } from "../core/extractor.ts";
 import { scanFiles } from "../core/scanner.ts";
 import { createDistanceMatrix } from "../distance/calculator.ts";
 import { type ClusteringOptions, createClusteringAlgorithm } from "../cli/clustering-factory.ts";
@@ -41,10 +41,11 @@ export async function runGraphMode(options: GraphModeOptions): Promise<void> {
     return;
   }
 
-  // 2. IDを抽出
+  // 2. IDを抽出・重複排除
   console.error("Extracting traceability IDs...");
-  const ids = await extractIds(files);
-  console.error(`Extracted ${ids.length} IDs`);
+  const rawIds = await extractIds(files);
+  const ids = deduplicateIds(rawIds);
+  console.error(`Extracted ${rawIds.length} IDs, deduplicated to ${ids.length}`);
 
   if (ids.length === 0) {
     console.error("No traceability IDs found");

@@ -51,13 +51,19 @@ export function generateHTML(
   .control-group label { display: block; margin-bottom: 4px; color: #aab; font-size: 12px; }
   .control-group select, .control-group input[type=range] { width: 100%; background: #1a1a2e; color: #e0e0e0; border: 1px solid #334; border-radius: 4px; padding: 4px 6px; }
   .threshold-val { color: #8af; font-weight: bold; margin-left: 6px; }
-  #detail-panel { position: absolute; top: 12px; right: 12px; background: rgba(20,20,40,0.95); padding: 16px; border-radius: 8px; z-index: 10; min-width: 280px; max-width: 360px; display: none; font-size: 13px; }
+  #detail-panel { position: absolute; top: 12px; right: 12px; background: rgba(20,20,40,0.95); padding: 16px; border-radius: 8px; z-index: 10; min-width: 280px; max-width: 400px; max-height: calc(100vh - 24px); overflow-y: auto; display: none; font-size: 13px; }
   #detail-panel h3 { color: #8af; margin-bottom: 10px; font-size: 14px; }
   #detail-panel .field { margin-bottom: 6px; }
   #detail-panel .field-label { color: #889; font-size: 11px; text-transform: uppercase; }
   #detail-panel .field-value { color: #dde; word-break: break-all; }
   #detail-panel .close-btn { position: absolute; top: 8px; right: 10px; cursor: pointer; color: #889; font-size: 18px; }
   #detail-panel .close-btn:hover { color: #fff; }
+  #detail-panel .edge-list { margin-top: 10px; padding-top: 8px; border-top: 1px solid #334; }
+  #detail-panel .edge-list h4 { color: #8af; font-size: 12px; margin-bottom: 6px; }
+  #detail-panel .edge-item { display: flex; justify-content: space-between; align-items: center; padding: 3px 0; border-bottom: 1px solid #1a1a2e; cursor: pointer; }
+  #detail-panel .edge-item:hover { background: rgba(138,170,255,0.1); }
+  #detail-panel .edge-id { color: #cde; font-size: 11px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 8px; }
+  #detail-panel .edge-dist { color: #8af; font-size: 11px; font-family: monospace; white-space: nowrap; }
   #node-indicator { position: absolute; bottom: 12px; right: 12px; background: rgba(20,20,40,0.9); padding: 8px 14px; border-radius: 6px; z-index: 10; font-size: 12px; color: #8af; display: none; }
   #stats { position: absolute; bottom: 12px; left: 12px; background: rgba(20,20,40,0.85); padding: 8px 14px; border-radius: 6px; z-index: 10; font-size: 12px; color: #889; }
   .shortcuts { margin-top: 6px; padding-top: 8px; border-top: 1px solid #334; font-size: 11px; color: #778; line-height: 1.6; }
@@ -263,11 +269,11 @@ export function generateHTML(
     .nodeThreeObjectExtend(false)
     .linkWidth(function(l) {
       var t = maxDist > 0 ? l.distance / maxDist : 0;
-      return 3 * (1 - t) + 0.2;
+      return 9 * (1 - t) + 1.0;
     })
-    .linkOpacity(0.6)
+    .linkOpacity(0.9)
     .linkColor(function(l) {
-      var a = maxDist > 0 ? 0.7 * (1 - l.distance / maxDist) + 0.15 : 0.5;
+      var a = maxDist > 0 ? 0.5 * (1 - l.distance / maxDist) + 0.5 : 0.7;
       return distToHSLA(l.distance, a);
     })
     .backgroundColor('#0a0a1a')
@@ -419,10 +425,62 @@ export function generateHTML(
       ['Cluster', node.clusterId],
       ['Tab ID', node.tabId]
     ];
-    content.innerHTML = fields.map(function(f) {
+    var html = fields.map(function(f) {
       return '<div class="field"><div class="field-label">' + f[0] + '</div><div class="field-value">' + escapeHtml(String(f[1])) + '</div></div>';
     }).join('');
+
+    // Find adjacent edges for this node
+    var currentLinks = graph.graphData().links;
+    var neighbors = [];
+    currentLinks.forEach(function(l) {
+      var sid = typeof l.source === 'object' ? l.source.id : l.source;
+      var tid = typeof l.target === 'object' ? l.target.id : l.target;
+      if (sid === node.id) {
+        neighbors.push({ id: tid, distance: l.distance });
+      } else if (tid === node.id) {
+        neighbors.push({ id: sid, distance: l.distance });
+      }
+    });
+    neighbors.sort(function(a, b) { return a.distance - b.distance; });
+
+    html += '<div class="edge-list"><h4>Adjacent Edges (' + neighbors.length + ')</h4>';
+    if (neighbors.length === 0) {
+      html += '<div style="color:#889;font-size:11px">No edges at current threshold</div>';
+    }
+    var showCount = Math.min(neighbors.length, 50);
+    for (var i = 0; i < showCount; i++) {
+      var nb = neighbors[i];
+      html += '<div class="edge-item" data-node-id="' + escapeHtml(nb.id) + '">'
+        + '<span class="edge-id">' + escapeHtml(nb.id) + '</span>'
+        + '<span class="edge-dist">' + nb.distance.toFixed(4) + '</span>'
+        + '</div>';
+    }
+    if (neighbors.length > showCount) {
+      html += '<div style="color:#889;font-size:11px;padding-top:4px">... and ' + (neighbors.length - showCount) + ' more</div>';
+    }
+    html += '</div>';
+
+    content.innerHTML = html;
     panel.style.display = 'block';
+    panel.scrollTop = 0;
+
+    // Click on neighbor item to navigate to that node
+    var items = content.querySelectorAll('.edge-item');
+    items.forEach(function(item) {
+      item.addEventListener('click', function() {
+        var targetId = this.getAttribute('data-node-id');
+        var targetNode = rawData.nodes.find(function(n) { return n.id === targetId; });
+        if (targetNode) {
+          showDetail(targetNode);
+          var dist = 150;
+          graph.cameraPosition(
+            { x: targetNode.x + dist, y: targetNode.y + dist * 0.3, z: targetNode.z + dist },
+            { x: targetNode.x, y: targetNode.y, z: targetNode.z },
+            600
+          );
+        }
+      });
+    });
   }
 
   function filterEdges(threshold) {
