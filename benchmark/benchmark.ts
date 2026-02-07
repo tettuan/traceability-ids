@@ -207,9 +207,7 @@ async function main(): Promise<void> {
   console.log();
 
   // Bottleneck analysis
-  const slowest = results.reduce((prev, curr) =>
-    curr.timeMs > prev.timeMs ? curr : prev
-  );
+  const slowest = results.reduce((prev, curr) => curr.timeMs > prev.timeMs ? curr : prev);
   console.log("🐌 Bottleneck:");
   console.log(
     `  ${slowest.name} (${((slowest.timeMs / totalTime) * 100).toFixed(1)}% of total time)`,

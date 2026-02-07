@@ -62,8 +62,7 @@ export function formatAsMarkdown(result: ClusteringResult): string {
  * @returns CSV文字列
  */
 export function formatAsCsv(result: ClusteringResult): string {
-  let csv =
-    "ClusterID,TraceabilityID,FilePath,LineNumber,Level,Scope,Semantic,Hash,Version\n";
+  let csv = "ClusterID,TraceabilityID,FilePath,LineNumber,Level,Scope,Semantic,Hash,Version\n";
 
   result.clusters.forEach((cluster) => {
     cluster.items.forEach((item) => {
@@ -178,8 +177,7 @@ export function formatSearchResultAsMarkdown(
 export function formatSearchResultAsCsv(
   result: SimilaritySearchResult,
 ): string {
-  let csv =
-    "Rank,Distance,TraceabilityID,FilePath,LineNumber,Level,Scope,Semantic,Hash,Version\n";
+  let csv = "Rank,Distance,TraceabilityID,FilePath,LineNumber,Level,Scope,Semantic,Hash,Version\n";
 
   result.items.forEach((item, index) => {
     csv += `${

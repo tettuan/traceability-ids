@@ -1,10 +1,7 @@
 import { extractIds } from "../core/extractor.ts";
 import { scanFiles } from "../core/scanner.ts";
 import { createDistanceMatrix } from "../distance/calculator.ts";
-import {
-  createClusteringAlgorithm,
-  type ClusteringOptions,
-} from "../cli/clustering-factory.ts";
+import { type ClusteringOptions, createClusteringAlgorithm } from "../cli/clustering-factory.ts";
 import { createDistanceCalculator } from "../cli/distance-factory.ts";
 import { formatResult } from "../formatter/formatter.ts";
 import type { ClusteringResult } from "../core/types.ts";

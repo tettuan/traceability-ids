@@ -531,8 +531,7 @@ function formatAsMarkdown(result: any): string {
 
 function formatAsCsv(result: any): string {
   // CSV形式でフォーマット
-  let csv =
-    "ClusterID,TraceabilityID,FilePath,LineNumber,Level,Scope,Semantic,Hash,Version\n";
+  let csv = "ClusterID,TraceabilityID,FilePath,LineNumber,Level,Scope,Semantic,Hash,Version\n";
 
   result.clusters.forEach((cluster: any, clusterIndex: number) => {
     cluster.items.forEach((item: any) => {
@@ -591,11 +590,7 @@ console.log(clusters);
 ### search/similarity.ts
 
 ```typescript
-import type {
-  SimilarityItem,
-  SimilaritySearchResult,
-  TraceabilityId,
-} from "../core/types.ts";
+import type { SimilarityItem, SimilaritySearchResult, TraceabilityId } from "../core/types.ts";
 import type { DistanceCalculator } from "../distance/calculator.ts";
 
 /**
@@ -920,11 +915,7 @@ export async function loadIds(
 ### formatter への追加（context フォーマット）
 
 ````typescript
-import type {
-  ContextExtractionResult,
-  ExtractedContext,
-  LocationContext,
-} from "../core/types.ts";
+import type { ContextExtractionResult, ExtractedContext, LocationContext } from "../core/types.ts";
 
 /**
  * コンテキスト抽出結果を Markdown 形式でフォーマット

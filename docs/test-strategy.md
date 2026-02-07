@@ -111,12 +111,14 @@ LOG_KEY=structural LOG_LEVEL=debug deno test src/distance/structural.test.ts
 **Coverage Target**: 90%+ for core business logic
 
 **Examples**:
+
 - Distance calculator algorithms
 - Clustering algorithms
 - ID extraction and parsing
 - Formatter functions
 
 **BreakdownLogger Use Cases**:
+
 - Debugging algorithm implementations
 - Inspecting intermediate calculation steps
 - Validating complex data transformations
@@ -153,11 +155,13 @@ Deno.test("StructuralDistance - same structure, different values", () => {
 **Coverage Target**: Critical user workflows
 
 **Examples**:
+
 - End-to-end clustering pipeline
 - Search mode with deduplication
 - Extract mode with context retrieval
 
 **BreakdownLogger Use Cases**:
+
 - Tracing data flow through pipeline
 - Debugging integration points
 - Monitoring state changes
@@ -169,11 +173,13 @@ Deno.test("StructuralDistance - same structure, different values", () => {
 **Location**: `src/modes/*.test.ts`
 
 **Examples**:
+
 - Cluster mode execution
 - Search mode execution
 - Extract mode execution
 
 **BreakdownLogger Use Cases**:
+
 - Debugging CLI argument processing
 - Tracing mode execution flow
 - Validating output generation
@@ -220,6 +226,7 @@ Deno.test("extractIdsFromFile - duplicate IDs", () => { ... });
 ### When to Use BreakdownLogger
 
 ✅ **DO USE** for:
+
 - **Complex algorithms**: Distance calculations, clustering logic
 - **Data transformations**: When debugging unexpected output
 - **Integration points**: Tracing data flow between modules
@@ -227,6 +234,7 @@ Deno.test("extractIdsFromFile - duplicate IDs", () => { ... });
 - **Failing tests**: To understand why a test is failing
 
 ❌ **DON'T USE** for:
+
 - **Simple assertions**: Use standard test output
 - **Production code**: BreakdownLogger is test-only
 - **Every test**: Only for debugging complex scenarios
@@ -237,30 +245,30 @@ Use hierarchical keys that match module structure:
 
 ```typescript
 // Distance calculators
-new BreakdownLogger("distance/cosine")
-new BreakdownLogger("distance/structural")
+new BreakdownLogger("distance/cosine");
+new BreakdownLogger("distance/structural");
 
 // Clustering algorithms
-new BreakdownLogger("clustering/hierarchical")
-new BreakdownLogger("clustering/kmeans")
+new BreakdownLogger("clustering/hierarchical");
+new BreakdownLogger("clustering/kmeans");
 
 // Extraction
-new BreakdownLogger("extract/context")
-new BreakdownLogger("extract/loader")
+new BreakdownLogger("extract/context");
+new BreakdownLogger("extract/loader");
 
 // Mode runners
-new BreakdownLogger("mode/cluster")
-new BreakdownLogger("mode/search")
+new BreakdownLogger("mode/cluster");
+new BreakdownLogger("mode/search");
 ```
 
 ### Log Level Guidelines
 
-| Level | Usage |
-|-------|-------|
+| Level   | Usage                                                               |
+| ------- | ------------------------------------------------------------------- |
 | `debug` | Detailed algorithm steps, intermediate values, data transformations |
-| `info` | Test milestones, major operations, configuration |
-| `warn` | Potential issues, boundary conditions, performance warnings |
-| `error` | Test failures, unexpected errors, validation failures |
+| `info`  | Test milestones, major operations, configuration                    |
+| `warn`  | Potential issues, boundary conditions, performance warnings         |
+| `error` | Test failures, unexpected errors, validation failures               |
 
 ### Example: Debugging Complex Test
 
@@ -279,7 +287,7 @@ Deno.test("Clustering - DBSCAN with noise points", () => {
     dataSize: ids.length,
   });
 
-  const matrix = createDistanceMatrix(ids.map(id => id.fullId), calculator);
+  const matrix = createDistanceMatrix(ids.map((id) => id.fullId), calculator);
   logger.debug("Distance matrix created", {
     dimensions: `${matrix.length}x${matrix[0].length}`,
   });
@@ -288,18 +296,18 @@ Deno.test("Clustering - DBSCAN with noise points", () => {
 
   logger.info("Clustering complete", {
     clusterCount: clusters.length,
-    noiseClusters: clusters.filter(c => c.length === 1).length,
+    noiseClusters: clusters.filter((c) => c.length === 1).length,
   });
 
   // Detailed cluster inspection
   clusters.forEach((cluster, idx) => {
     logger.debug(`Cluster ${idx}`, {
       size: cluster.length,
-      ids: cluster.map(id => id.semantic),
+      ids: cluster.map((id) => id.semantic),
     });
   });
 
-  assertEquals(clusters.filter(c => c.length === 1).length, 2);
+  assertEquals(clusters.filter((c) => c.length === 1).length, 2);
 });
 ```
 
@@ -327,11 +335,13 @@ LOG_LENGTH=W LOG_LEVEL=debug deno test src/clustering/dbscan.test.ts
 ### CI/CD Integration
 
 Tests run automatically via:
+
 ```bash
 deno task ci
 ```
 
 This includes:
+
 1. Type checking
 2. Test execution
 3. Lint checking
@@ -340,13 +350,13 @@ This includes:
 
 ## Coverage Goals
 
-| Category | Target |
-|----------|--------|
-| Core business logic | 90%+ |
-| Distance calculators | 100% |
-| Clustering algorithms | 100% |
-| Formatters | 80%+ |
-| CLI entry points | 60%+ |
+| Category              | Target |
+| --------------------- | ------ |
+| Core business logic   | 90%+   |
+| Distance calculators  | 100%   |
+| Clustering algorithms | 100%   |
+| Formatters            | 80%+   |
+| CLI entry points      | 60%+   |
 
 ## Future Enhancements
 

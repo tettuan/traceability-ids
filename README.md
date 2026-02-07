@@ -201,14 +201,14 @@ deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/extract \
 
 ### Extract Mode Options (`/extract`)
 
-| Option       | Description                    | Default    | Values                      |
-| ------------ | ------------------------------ | ---------- | --------------------------- |
-| `--ids`      | Space-separated IDs (REQUIRED) | -          | String                      |
-| `--ids-file` | Path to file with IDs          | -          | File path                   |
-| `--output`   | Output file path               | STDOUT     | File path                   |
-| `--before`   | Lines before target            | `3`        | Number (max: 50)            |
-| `--after`    | Lines after target             | `10`       | Number (max: 50)            |
-| `--format`   | Output format                  | `markdown` | `markdown`, `json`, `simple`|
+| Option       | Description                    | Default    | Values                       |
+| ------------ | ------------------------------ | ---------- | ---------------------------- |
+| `--ids`      | Space-separated IDs (REQUIRED) | -          | String                       |
+| `--ids-file` | Path to file with IDs          | -          | File path                    |
+| `--output`   | Output file path               | STDOUT     | File path                    |
+| `--before`   | Lines before target            | `3`        | Number (max: 50)             |
+| `--after`    | Lines after target             | `10`       | Number (max: 50)             |
+| `--format`   | Output format                  | `markdown` | `markdown`, `json`, `simple` |
 
 ## Distance Calculation Guide
 

@@ -1,8 +1,4 @@
-import type {
-  SimilarityItem,
-  SimilaritySearchResult,
-  TraceabilityId,
-} from "../core/types.ts";
+import type { SimilarityItem, SimilaritySearchResult, TraceabilityId } from "../core/types.ts";
 import type { DistanceCalculator } from "../distance/calculator.ts";
 
 /**

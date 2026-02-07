@@ -56,8 +56,7 @@ export async function extractUniqueIdsWithCli(
   // -I: バイナリファイルをスキップ
   // -g '*.md': markdownファイルのみ（グロブパターン）
   // sort -u: ソートしてユニーク化
-  const shellCmd =
-    `rg -oNI '${pattern}' -g '*.md' '${inputDir}' 2>/dev/null | sort -u`;
+  const shellCmd = `rg -oNI '${pattern}' -g '*.md' '${inputDir}' 2>/dev/null | sort -u`;
 
   const cmd = new Deno.Command("sh", {
     args: ["-c", shellCmd],

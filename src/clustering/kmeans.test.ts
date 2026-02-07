@@ -78,9 +78,7 @@ Deno.test("KMeansClustering - auto k estimation", () => {
   );
 
   // Create a simple distance matrix
-  const distanceMatrix = items.map((_, i) =>
-    items.map((_, j) => (i === j ? 0 : Math.abs(i - j)))
-  );
+  const distanceMatrix = items.map((_, i) => items.map((_, j) => (i === j ? 0 : Math.abs(i - j))));
 
   const clusters = algorithm.cluster(items, distanceMatrix);
 

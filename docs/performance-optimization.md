@@ -35,10 +35,10 @@ O(n²) の計算量のため、ID数が増えると指数的に遅くなりま�
 ```typescript
 // 既に実装済み: 半分だけ計算
 for (let i = 0; i < n; i++) {
-  for (let j = i + 1; j < n; j++) {  // j = i+1 から開始
+  for (let j = i + 1; j < n; j++) { // j = i+1 から開始
     const distance = calculator.calculate(items[i], items[j]);
     matrix[i][j] = distance;
-    matrix[j][i] = distance;  // 対称性を利用
+    matrix[j][i] = distance; // 対称性を利用
   }
 }
 ```
@@ -55,10 +55,12 @@ const uniqueIds = await extractUniqueIdsAuto(inputDir);
 ```
 
 **パフォーマンス**:
+
 - 小規模（<50ファイル）: Native版（プロセス起動コストを回避）
 - 大規模（≥50ファイル）: CLI版（10-100倍高速）
 
 **必要な外部ツール**:
+
 ```bash
 # macOS
 brew install ripgrep
@@ -85,17 +87,18 @@ deno run search.ts --index ./data.index --query "auth"
 ```
 
 **メリット**:
+
 - 検索が O(n²) → O(log n) に改善
 - 事前計算済みの距離行列を利用
 - Pure TypeScript（外部依存なし）
 
 ## 推奨事項
 
-| データ規模 | 推奨アプローチ |
-|-----------|---------------|
-| 小規模（<100ファイル、<100 ID） | 現状のまま（既に十分高速） |
-| 中規模（100-1000ファイル） | CLI版ID抽出を有効化 |
-| 大規模（1000+ファイル、1000+ ID） | 索引化の実装を検討 |
+| データ規模                        | 推奨アプローチ             |
+| --------------------------------- | -------------------------- |
+| 小規模（<100ファイル、<100 ID）   | 現状のまま（既に十分高速） |
+| 中規模（100-1000ファイル）        | CLI版ID抽出を有効化        |
+| 大規模（1000+ファイル、1000+ ID） | 索引化の実装を検討         |
 
 ## ベンチマーク
 

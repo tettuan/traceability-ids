@@ -173,9 +173,7 @@ Deno.test("DBSCANClustering - chain of points", () => {
   );
 
   // Chain: 0-1-2-3-4, each 4 units apart
-  const distanceMatrix = items.map((_, i) =>
-    items.map((_, j) => Math.abs(i - j) * 4)
-  );
+  const distanceMatrix = items.map((_, i) => items.map((_, j) => Math.abs(i - j) * 4));
 
   const clusters = algorithm.cluster(items, distanceMatrix);
 

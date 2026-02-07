@@ -51,8 +51,7 @@ Deno.test("extractIdsFromFile - multiple IDs on same line", async () => {
   const testFile = await Deno.makeTempFile({ suffix: ".md" });
 
   try {
-    const content =
-      "Multiple IDs: req:test:id1-abc123#v1 and req:test:id2-xyz789#v2\n";
+    const content = "Multiple IDs: req:test:id1-abc123#v1 and req:test:id2-xyz789#v2\n";
 
     await Deno.writeTextFile(testFile, content);
 
