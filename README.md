@@ -16,7 +16,14 @@ things at once:
   found and grouped far more reliably than free-text search.
 - **History management** — the `#{version}` component records when an entry was
   written or revised, so the same logical item can be tracked across edits and
-  over time.
+  over time. This turns the documents into a **decision history**: how a
+  requirement or design evolved, and why, stays traceable across revisions.
+
+These benefits apply to a wide range of cases — from **product requirements**,
+where each requirement is tracked from definition through revision, to
+**strategic decision-making**, where the rationale behind a choice and its later
+changes remain traceable. Any domain where documents carry decisions and evolve
+over time can adopt the same scheme.
 
 **This repository is a tool that searches by similar IDs.** Rather than matching
 exact strings, it clusters traceability IDs by similarity and returns a unique
