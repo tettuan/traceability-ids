@@ -24,13 +24,14 @@
     "ci": "deno run -A jsr:@aidevtool/ci"
   },
   "imports": {
+    "@std/assert": "jsr:@std/assert@^1.0.10",
     "@std/cli": "jsr:@std/cli@^1.0.9",
     "@std/fs": "jsr:@std/fs@^1.0.8",
     "@tettuan/breakdownlogger": "jsr:@tettuan/breakdownlogger@^1.0.8"
   },
   "lint": {
     "rules": {
-      "tags": ["recommended"],
+      "tags": ["recommended", "jsr"],
       "include": [
         "ban-untagged-todo",
         "camelcase",
@@ -41,14 +42,20 @@
         "guard-for-in",
         "no-const-assign",
         "no-eval",
+        "no-external-import",
         "no-implicit-declare-namespace-export",
+        "no-inferrable-types",
         "no-non-null-asserted-optional-chain",
         "no-non-null-assertion",
         "no-self-compare",
         "no-sparse-arrays",
         "no-sync-fn-in-async-fn",
         "no-throw-literal",
-        "single-var-declarator"
+        "no-undef",
+        "no-useless-rename",
+        "single-var-declarator",
+        "triple-slash-reference",
+        "verbatim-module-syntax"
       ]
     }
   },

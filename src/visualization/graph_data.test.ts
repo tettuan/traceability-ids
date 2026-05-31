@@ -1,4 +1,4 @@
-import { assertEquals } from "jsr:@std/assert@^1.0.0";
+import { assertEquals } from "@std/assert";
 import { buildGraphData } from "./graph_data.ts";
 import type { Cluster, TraceabilityId } from "../core/types.ts";
 

@@ -1,4 +1,4 @@
-import { assertEquals } from "jsr:@std/assert";
+import { assertEquals } from "@std/assert";
 import { deduplicateIds, extractIdsFromFile } from "./extractor.ts";
 import type { TraceabilityId } from "./types.ts";
 

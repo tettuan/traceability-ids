@@ -1,4 +1,4 @@
-import { assertEquals } from "jsr:@std/assert@^1.0.0";
+import { assertEquals } from "@std/assert";
 import { classicalMDS } from "./mds.ts";
 
 Deno.test("classicalMDS - empty input", () => {

@@ -1,4 +1,4 @@
-import { assertEquals, assertThrows } from "jsr:@std/assert@^1.0.0";
+import { assertEquals, assertThrows } from "@std/assert";
 import { createDistanceCalculator } from "./distance-factory.ts";
 
 Deno.test("createDistanceCalculator - levenshtein", () => {
