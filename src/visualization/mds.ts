@@ -27,7 +27,7 @@ export interface MDSResult {
  */
 export function classicalMDS(
   distanceMatrix: number[][],
-  dimensions: number = 3,
+  dimensions = 3,
 ): MDSResult {
   const n = distanceMatrix.length;
   if (n === 0) {

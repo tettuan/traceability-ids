@@ -6,6 +6,30 @@ based on similarity.
 [![JSR](https://jsr.io/badges/@aidevtool/traceability-ids)](https://jsr.io/@aidevtool/traceability-ids)
 [![JSR Score](https://jsr.io/badges/@aidevtool/traceability-ids/score)](https://jsr.io/@aidevtool/traceability-ids)
 
+## Use Case
+
+Assigning a **traceability ID** to each entry in your documents gives you two
+things at once:
+
+- **Searchability** — IDs follow a structured format
+  (`{level}:{scope}:{semantic}-{hash}#{version}`), so related entries can be
+  found and grouped far more reliably than free-text search.
+- **History management** — the `#{version}` component records when an entry was
+  written or revised, so the same logical item can be tracked across edits and
+  over time. This turns the documents into a **decision history**: how a
+  requirement or design evolved, and why, stays traceable across revisions.
+
+These benefits apply to a wide range of cases — from **product requirements**,
+where each requirement is tracked from definition through revision, to
+**strategic decision-making**, where the rationale behind a choice and its later
+changes remain traceable. Any domain where documents carry decisions and evolve
+over time can adopt the same scheme.
+
+**This repository is a tool that searches by similar IDs.** Rather than matching
+exact strings, it clusters traceability IDs by similarity and returns a unique
+list sorted by closeness — so you can discover where related IDs live across your
+Markdown documents, even when you don't know the exact ID.
+
 ## Overview
 
 This tool automatically extracts traceability IDs from Markdown files and

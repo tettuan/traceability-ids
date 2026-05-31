@@ -17,7 +17,7 @@
  * @module
  */
 
-import { parseArgs } from "jsr:@std/cli@^1.0.9/parse-args";
+import { parseArgs } from "@std/cli/parse-args";
 import { runListMode } from "./src/modes/list.ts";
 
 async function main(): Promise<void> {

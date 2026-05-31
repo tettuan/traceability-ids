@@ -1,4 +1,4 @@
-import { assertEquals } from "jsr:@std/assert";
+import { assertEquals } from "@std/assert";
 import { searchByKeyword, searchSimilar } from "./similarity.ts";
 import type { TraceabilityId } from "../core/types.ts";
 import { LevenshteinDistance } from "../distance/levenshtein.ts";

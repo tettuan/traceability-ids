@@ -1,4 +1,4 @@
-import { assertEquals } from "jsr:@std/assert";
+import { assertEquals } from "@std/assert";
 import { DBSCANClustering } from "./dbscan.ts";
 import type { TraceabilityId } from "../core/types.ts";
 

@@ -1,4 +1,4 @@
-import { assertEquals, assertStringIncludes } from "jsr:@std/assert";
+import { assertEquals, assertStringIncludes } from "@std/assert";
 import { formatAsCsv, formatAsJson, formatAsMarkdown, formatResult } from "./formatter.ts";
 import type { ClusteringResult, TraceabilityId } from "../core/types.ts";
 

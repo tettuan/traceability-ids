@@ -1,4 +1,4 @@
-import { assertEquals } from "jsr:@std/assert";
+import { assertEquals } from "@std/assert";
 import { LevenshteinDistance } from "./levenshtein.ts";
 
 Deno.test("LevenshteinDistance - identical strings", () => {

@@ -1,4 +1,4 @@
-import { assertAlmostEquals, assertEquals } from "jsr:@std/assert";
+import { assertAlmostEquals, assertEquals } from "@std/assert";
 import { CosineDistance } from "./cosine.ts";
 
 Deno.test("CosineDistance - identical strings", () => {

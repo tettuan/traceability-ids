@@ -1,6 +1,6 @@
 {
   "name": "@aidevtool/traceability-ids",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "exports": "./src/cli.ts",
   "publish": {
     "include": [

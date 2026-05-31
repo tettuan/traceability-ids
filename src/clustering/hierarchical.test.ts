@@ -1,4 +1,4 @@
-import { assertEquals } from "jsr:@std/assert";
+import { assertEquals } from "@std/assert";
 import { HierarchicalClustering } from "./hierarchical.ts";
 import type { TraceabilityId } from "../core/types.ts";
 

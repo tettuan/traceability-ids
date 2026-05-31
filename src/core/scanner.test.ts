@@ -1,4 +1,4 @@
-import { assertEquals, assertRejects } from "jsr:@std/assert@^1.0.0";
+import { assertEquals, assertRejects } from "@std/assert";
 import { scanFiles } from "./scanner.ts";
 
 Deno.test("scanFiles - finds markdown files in data directory", async () => {
