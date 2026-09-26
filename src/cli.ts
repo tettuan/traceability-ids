@@ -66,6 +66,7 @@ CLUSTER MODE OPTIONS:
 
   --ext <list>            File extensions to scan, comma-separated (default: md)
                           • e.g. md,rs,ts,tsx,mjs,sh
+  --skip-frontmatter      Ignore IDs in frontmatter (leading --- block); body only
   --help                  Show this help message
 
 EXAMPLES:

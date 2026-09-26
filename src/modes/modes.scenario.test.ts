@@ -383,3 +383,45 @@ defineScenario({
     outcome: { kind: "error", error: { kind: "EmptyIdList" } },
   },
 });
+
+// ── frontmatter ──
+
+const WITH_FRONTMATTER = {
+  "docs/a.md": "---\nderived_from:\n  - req:up:origin-9f9f9f#v1\n---\n# req:auth:login-a1b2c3#v1\n",
+} as const;
+
+defineScenario({
+  name: "extract: --skip-frontmatter leaves IDs only in frontmatter missing",
+  given: WITH_FRONTMATTER,
+  when: (ctx) =>
+    runExtractMode(
+      extractOptions(ctx, {
+        ids: { kind: "inline", text: "req:up:origin-9f9f9f req:auth:login-a1b2c3" },
+        frontmatter: "skip",
+      }),
+      ctx.io,
+    ),
+  then: {
+    events: [
+      { type: "ScanStarted", frontmatter: "skip" },
+      { type: "IdsExtracted", total: 1 },
+      { type: "ContextsResolved", found: 1, notFound: 1 },
+    ],
+    outcome: { kind: "success", result: { status: "partial", missing: ["req:up:origin-9f9f9f"] } },
+    verify: (ctx) => assertStringIncludes(ctx.io.printed.join(""), "a.md:5"),
+  },
+});
+
+defineScenario({
+  name: "list: frontmatter is included by default",
+  given: WITH_FRONTMATTER,
+  when: (ctx) =>
+    runListMode(
+      { inputDir: ctx.path("docs"), format: "simple", sort: "fullId", batchSize: 0 },
+      ctx.io,
+    ),
+  then: {
+    events: [{ type: "ScanStarted", frontmatter: "include" }, { type: "IdsExtracted", total: 2 }],
+    outcome: { kind: "success", result: { status: "complete" } },
+  },
+});

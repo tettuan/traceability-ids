@@ -29,6 +29,7 @@ Deno.test("args - extract builds typed options", () => {
       options: {
         inputDir: ["d", "s"],
         extensions: ["md", "rs"],
+        frontmatter: "include",
         outputFile: undefined,
         ids: { kind: "inline", text: "a:b:c-1 a:b:c-2" },
         before: 3,
@@ -41,6 +42,8 @@ Deno.test("args - extract builds typed options", () => {
   );
   const fromFile = parseExtractArgs(["--ids-file", "ids.txt", "d"]);
   assertEquals(fromFile.kind === "run" && fromFile.options.ids, { kind: "file", path: "ids.txt" });
+  const skip = parseListArgs(["--skip-frontmatter", "d"]);
+  assertEquals(skip.kind === "run" && skip.options.frontmatter, "skip");
   const allow = parseExtractArgs(["--ids", "x", "--allow-missing", "d"]);
   assertEquals(allow.kind === "run" && allow.options.allowMissing, true);
 });

@@ -68,7 +68,7 @@ function flags(
 ): Flags {
   return parseArgs([...argv], {
     string: ["ext", ...string],
-    boolean: ["help", ...boolean],
+    boolean: ["help", "skip-frontmatter", ...boolean],
     default: defaults,
   }) as Flags;
 }
@@ -78,7 +78,7 @@ function optional(value: unknown): string | undefined {
 }
 
 /**
- * Input paths and extensions
+ * Input paths, extensions and frontmatter policy
  *
  * @throws TraceabilityError `MissingArgument` | `InvalidOptionValue`
  */
@@ -89,6 +89,7 @@ function inputSpec(args: Flags): Required<InputSpec> {
   return {
     inputDir: args._.map(String),
     extensions: parseExtensions(optional(args.ext)),
+    frontmatter: args["skip-frontmatter"] === true ? "skip" : "include",
   };
 }
 

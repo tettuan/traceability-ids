@@ -519,6 +519,7 @@ export { runGraphMode } from "./modes/graph.ts";
 
 export type { ModeOutcome } from "./core/outcome.ts";
 export type { NonEmptyArray } from "./core/nonempty.ts";
+export { frontmatterLineCount } from "./core/frontmatter.ts";
 export type { ParameterRule } from "./core/params.ts";
 export { COMPLETE, lookupOutcome, OUTCOME_EXIT_CODES } from "./core/outcome.ts";
 
@@ -539,6 +540,7 @@ export type {
   ColorMode,
   DistanceName,
   ExtractFormat,
+  FrontmatterPolicy,
   Layout,
   ListFormat,
   SearchFormat,
@@ -551,6 +553,7 @@ export {
   COLOR_MODES,
   DISTANCE_NAMES,
   EXTRACT_FORMATS,
+  FRONTMATTER_POLICIES,
   LAYOUTS,
   LIST_FORMATS,
   SEARCH_FORMATS,
