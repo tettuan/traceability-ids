@@ -16,28 +16,24 @@
  * @module
  */
 
-import { parseArgs } from "@std/cli/parse-args";
+import { parseClusterArgs } from "./cli/args.ts";
+import { type CommandSpec, main } from "./cli/runner.ts";
 import { runClusterMode } from "./modes/cluster.ts";
-import type { ClusteringOptions } from "./cli/clustering-factory.ts";
+import type { ClusterModeOptions } from "./modes/cluster.ts";
 
-/**
- * 使用方法を表示
- */
-function showUsage(): void {
-  console.log(
-    `Traceability IDs - Extract and cluster traceability IDs from markdown files
+const USAGE = `Traceability IDs - Extract and cluster traceability IDs from markdown files
 
 USAGE:
-  deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids [options] <input-dir>
+  deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids [options] <input-path...>
 
   # Search mode (use /search subpath)
-  deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/search [options] <input-dir>
+  deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/search [options] <input-path...>
 
   # Extract mode (use /extract subpath)
-  deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/extract [options] <input-dir>
+  deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/extract [options] <input-path...>
 
 ARGUMENTS:
-  <input-dir>     Directory to scan for .md files (recursively scanned)
+  <input-path...> Directories or files to scan (one or more; directories are scanned recursively)
 
 CLUSTER MODE OPTIONS:
   --output <file>         Output file path (default: STDOUT)
@@ -68,6 +64,8 @@ CLUSTER MODE OPTIONS:
   --epsilon <number>      Maximum distance for DBSCAN neighborhood (default: 0.3)
   --min-points <number>   Minimum neighbors for DBSCAN core points (default: 2)
 
+  --ext <list>            File extensions to scan, comma-separated (default: md)
+                          • e.g. md,rs,ts,tsx,mjs,sh
   --help                  Show this help message
 
 EXAMPLES:
@@ -89,80 +87,15 @@ EXAMPLES:
   # Options can be in any order
   deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids \\
     --algorithm dbscan ./docs --distance cosine --epsilon 0.4
-`,
-  );
-}
+`;
 
-/**
- * メイン関数
- */
-async function main(): Promise<void> {
-  // 引数をパース
-  const args = parseArgs(Deno.args, {
-    string: [
-      "algorithm",
-      "distance",
-      "format",
-      "threshold",
-      "k",
-      "epsilon",
-      "min-points",
-      "output",
-    ],
-    boolean: ["help"],
-    default: {
-      algorithm: "hierarchical",
-      distance: "structural",
-      format: "simple",
-      threshold: "0.3", // structuralに最適化
-      k: "0",
-      epsilon: "0.3",
-      "min-points": "2",
-    },
-  });
-
-  // ヘルプ表示
-  if (args.help) {
-    showUsage();
-    Deno.exit(0);
-  }
-
-  // 必須引数のチェック
-  if (args._.length < 1) {
-    console.error("Error: Missing required argument <input-dir>\n");
-    showUsage();
-    Deno.exit(1);
-  }
-
-  try {
-    const clusteringOptions: ClusteringOptions = {
-      threshold: parseFloat(args.threshold),
-      k: parseInt(args.k),
-      epsilon: parseFloat(args.epsilon),
-      minPoints: parseInt(args["min-points"]),
-    };
-
-    await runClusterMode({
-      inputDir: String(args._[0]),
-      outputFile: args.output ? String(args.output) : undefined,
-      algorithm: args.algorithm,
-      distance: args.distance,
-      format: args.format as
-        | "json"
-        | "markdown"
-        | "csv"
-        | "simple"
-        | "simple-clustered",
-      clusteringOptions,
-    });
-  } catch (error) {
-    console.error(
-      `Error: ${error instanceof Error ? error.message : String(error)}`,
-    );
-    Deno.exit(1);
-  }
-}
+/** The cluster command */
+export const command: CommandSpec<ClusterModeOptions> = {
+  usage: USAGE,
+  parse: parseClusterArgs,
+  run: (options) => runClusterMode(options),
+};
 
 if (import.meta.main) {
-  await main();
+  await main(command);
 }

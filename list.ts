@@ -17,28 +17,18 @@
  * @module
  */
 
-import { parseArgs } from "@std/cli/parse-args";
+import { parseListArgs } from "./src/cli/args.ts";
+import { type CommandSpec, main } from "./src/cli/runner.ts";
 import { runListMode } from "./src/modes/list.ts";
+import type { ListModeOptions } from "./src/modes/list.ts";
 
-async function main(): Promise<void> {
-  const args = parseArgs(Deno.args, {
-    string: ["output", "format", "sort", "batch-size"],
-    boolean: ["help"],
-    default: {
-      format: "json",
-      sort: "fullId",
-      "batch-size": "0",
-    },
-  });
-
-  if (args.help || args._.length < 1) {
-    console.log(`List Mode - Extract all traceability IDs with occurrences
+const USAGE = `List Mode - Extract all traceability IDs with occurrences
 
 USAGE:
-  deno run --allow-read --allow-write list.ts [options] <input-dir>
+  deno run --allow-read --allow-write list.ts [options] <input-path...>
 
 ARGUMENTS:
-  <input-dir>             Directory to scan for .md files
+  <input-path...>      Directories or files to scan (one or more; directories are scanned recursively)
 
 OPTIONS:
   --format <format>       Output format (default: json)
@@ -53,6 +43,8 @@ OPTIONS:
                           • count: Most occurrences first
   --batch-size <number>   Split output into batches (default: 0 = no split)
                           Requires --output. Creates files like output-001.json
+  --ext <list>            File extensions to scan, comma-separated (default: md)
+                          • e.g. md,rs,ts,tsx,mjs,sh
   --help                  Show this help message
 
 EXAMPLES:
@@ -67,35 +59,15 @@ EXAMPLES:
 
   # Batch output (100 IDs per file)
   deno run --allow-read --allow-write list.ts ./data --output tmp/ids.json --batch-size 100
-`);
-    Deno.exit(args.help ? 0 : 1);
-  }
+`;
 
-  try {
-    const outputFile = args.output ? String(args.output) : undefined;
-
-    if (outputFile) {
-      const outputDir = outputFile.substring(0, outputFile.lastIndexOf("/"));
-      if (outputDir) {
-        await Deno.mkdir(outputDir, { recursive: true });
-      }
-    }
-
-    await runListMode({
-      inputDir: String(args._[0]),
-      outputFile,
-      format: String(args.format) as "json" | "simple" | "csv",
-      sort: String(args.sort) as "fullId" | "scope" | "level" | "count",
-      batchSize: parseInt(String(args["batch-size"])),
-    });
-  } catch (error) {
-    console.error(
-      `Error: ${error instanceof Error ? error.message : String(error)}`,
-    );
-    Deno.exit(1);
-  }
-}
+/** The list command */
+export const command: CommandSpec<ListModeOptions> = {
+  usage: USAGE,
+  parse: parseListArgs,
+  run: (options) => runListMode(options),
+};
 
 if (import.meta.main) {
-  await main();
+  await main(command);
 }

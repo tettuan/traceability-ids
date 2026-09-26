@@ -7,8 +7,9 @@
 
 import type { IdIndex, IdIndexEntry, TraceabilityId } from "../core/types.ts";
 
-/** Sort key options for ID index entries */
-export type SortKey = "fullId" | "scope" | "level" | "count";
+import type { SortKey } from "../core/options.ts";
+
+export type { SortKey } from "../core/options.ts";
 
 /**
  * Aggregate raw traceability IDs into an IdIndex.

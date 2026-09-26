@@ -1,3 +1,4 @@
+import { TraceabilityError } from "../core/errors.ts";
 import type { Cluster, TraceabilityId } from "../core/types.ts";
 import type { ClusteringAlgorithm } from "./algorithm.ts";
 
@@ -17,10 +18,20 @@ export class DBSCANClustering implements ClusteringAlgorithm {
     private minPoints: number,
   ) {
     if (epsilon <= 0) {
-      throw new Error("Epsilon must be positive");
+      throw new TraceabilityError({
+        kind: "InvalidParameter",
+        parameter: "epsilon",
+        value: epsilon,
+        constraint: "must be positive",
+      });
     }
     if (minPoints < 1) {
-      throw new Error("MinPoints must be at least 1");
+      throw new TraceabilityError({
+        kind: "InvalidParameter",
+        parameter: "min-points",
+        value: minPoints,
+        constraint: "must be at least 1",
+      });
     }
   }
 

@@ -1,3 +1,4 @@
+import { TraceabilityError } from "../core/errors.ts";
 import type { DistanceCalculator } from "./calculator.ts";
 
 /**
@@ -13,7 +14,12 @@ export class JaroWinklerDistance implements DistanceCalculator {
    */
   constructor(private prefixScale: number = 0.1) {
     if (prefixScale < 0 || prefixScale > 0.25) {
-      throw new Error("Prefix scale must be between 0.0 and 0.25");
+      throw new TraceabilityError({
+        kind: "InvalidParameter",
+        parameter: "prefix scale",
+        value: prefixScale,
+        constraint: "must be between 0.0 and 0.25",
+      });
     }
   }
 

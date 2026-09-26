@@ -481,7 +481,7 @@ export { runAnalyzeMode } from "./modes/analyze.ts";
 /**
  * Run list mode to extract all IDs with occurrence information
  *
- * Scans markdown files, groups IDs by fullId, and outputs a structured
+ * Scans files (markdown by default), groups IDs by fullId, and outputs a structured
  * index with all file locations for each unique ID.
  *
  * @param options - List mode options
@@ -498,3 +498,81 @@ export { runAnalyzeMode } from "./modes/analyze.ts";
  * ```
  */
 export { runListMode } from "./modes/list.ts";
+
+// ============================================================================
+// Other modes
+// ============================================================================
+
+export type { ClusterModeOptions } from "./modes/cluster.ts";
+export type { SearchModeOptions } from "./modes/search.ts";
+export type { ExtractModeOptions } from "./modes/extract.ts";
+export type { GraphModeOptions } from "./modes/graph.ts";
+export type { InputSpec } from "./modes/pipeline.ts";
+export { runClusterMode } from "./modes/cluster.ts";
+export { runSearchMode } from "./modes/search.ts";
+export { runExtractMode } from "./modes/extract.ts";
+export { runGraphMode } from "./modes/graph.ts";
+
+// ============================================================================
+// ID grammar, options, events, errors
+// ============================================================================
+
+export type { IdComponents, UniqueKey } from "./core/id.ts";
+export {
+  compareVersionsDesc,
+  findIds,
+  hasVersion,
+  parseId,
+  uniqueKeyOf,
+  withVersion,
+} from "./core/id.ts";
+
+export type {
+  AlgorithmName,
+  ClusterFormat,
+  ClusteringOptions,
+  ColorMode,
+  DistanceName,
+  ExtractFormat,
+  Layout,
+  ListFormat,
+  SearchFormat,
+  SortKey,
+  VersionMatchMode,
+} from "./core/options.ts";
+export {
+  ALGORITHM_NAMES,
+  CLUSTER_FORMATS,
+  COLOR_MODES,
+  DISTANCE_NAMES,
+  EXTRACT_FORMATS,
+  LAYOUTS,
+  LIST_FORMATS,
+  SEARCH_FORMATS,
+  SORT_KEYS,
+  VERSION_MATCH_MODES,
+} from "./core/options.ts";
+
+export type { IdsSource } from "./extract/loader.ts";
+export type { IdMatchGroup } from "./extract/resolver.ts";
+export { resolveTargetId } from "./extract/resolver.ts";
+
+export type {
+  AnalysisAspect,
+  EmptyReason,
+  ModeEvent,
+  ModeEventType,
+  ModeIO,
+  ModeName,
+} from "./core/events.ts";
+export { consoleIO, describeEvent } from "./core/events.ts";
+
+export type { ErrorCategory, ErrorDetail, ErrorKind, TraceabilityErrorOf } from "./core/errors.ts";
+export {
+  describeError,
+  ERROR_CATEGORIES,
+  EXIT_CODES,
+  isTraceabilityError,
+  TraceabilityError,
+  UNEXPECTED_EXIT_CODE,
+} from "./core/errors.ts";

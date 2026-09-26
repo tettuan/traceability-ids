@@ -1,3 +1,5 @@
+import { assertNever } from "../core/errors.ts";
+import type { ClusterFormat, ExtractFormat, SearchFormat } from "../core/options.ts";
 import type {
   ClusteringResult,
   ContextExtractionResult,
@@ -82,7 +84,7 @@ export function formatAsCsv(result: ClusteringResult): string {
  */
 export function formatResult(
   result: ClusteringResult,
-  format: "json" | "markdown" | "csv" | "simple" | "simple-clustered",
+  format: ClusterFormat,
 ): string {
   switch (format) {
     case "json":
@@ -96,7 +98,7 @@ export function formatResult(
     case "simple-clustered":
       return formatAsSimpleWithClusters(result);
     default:
-      throw new Error(`Unknown format: ${format}`);
+      return assertNever(format);
   }
 }
 
@@ -197,7 +199,7 @@ export function formatSearchResultAsCsv(
  */
 export function formatSearchResult(
   result: SimilaritySearchResult,
-  format: "json" | "markdown" | "csv" | "simple",
+  format: SearchFormat,
   showDistance = false,
 ): string {
   switch (format) {
@@ -210,7 +212,7 @@ export function formatSearchResult(
     case "simple":
       return formatSearchResultAsSimple(result, showDistance);
     default:
-      throw new Error(`Unknown format: ${format}`);
+      return assertNever(format);
   }
 }
 
@@ -253,6 +255,9 @@ export function formatContextAsMarkdown(
  */
 function formatExtractedContextAsMarkdown(context: ExtractedContext): string {
   let md = `## ID: ${context.id}\n\n`;
+  if (context.query) {
+    md += `Resolved from: ${context.query}\n\n`;
+  }
 
   context.locations.forEach((location) => {
     md += `### Location: ${location.filePath}:${location.lineNumber}\n\n`;
@@ -311,7 +316,7 @@ export function formatContextAsSimple(result: ContextExtractionResult): string {
  */
 export function formatContextResult(
   result: ContextExtractionResult,
-  format: "json" | "markdown" | "simple",
+  format: ExtractFormat,
 ): string {
   switch (format) {
     case "json":
@@ -321,6 +326,6 @@ export function formatContextResult(
     case "simple":
       return formatContextAsSimple(result);
     default:
-      return formatContextAsMarkdown(result);
+      return assertNever(format);
   }
 }

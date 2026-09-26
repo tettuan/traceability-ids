@@ -2,7 +2,7 @@
 /**
  * Extract mode for retrieving context around specific traceability IDs.
  *
- * Searches markdown files for specified IDs and extracts surrounding lines,
+ * Searches files (markdown by default) for specified IDs and extracts surrounding lines,
  * similar to grep with context. Useful for understanding where and how IDs are used.
  *
  * @example
@@ -17,37 +17,34 @@
  * @module
  */
 
-import { parseArgs } from "@std/cli/parse-args";
+import { parseExtractArgs } from "./src/cli/args.ts";
+import { type CommandSpec, main } from "./src/cli/runner.ts";
 import { runExtractMode } from "./src/modes/extract.ts";
+import type { ExtractModeOptions } from "./src/modes/extract.ts";
 
-async function main(): Promise<void> {
-  const args = parseArgs(Deno.args, {
-    string: ["ids", "ids-file", "before", "after", "format", "output"],
-    boolean: ["help"],
-    default: {
-      before: "3",
-      after: "10",
-      format: "markdown",
-    },
-  });
-
-  if (args.help || args._.length < 1 || (!args.ids && !args["ids-file"])) {
-    console.log(`Extract Mode - Extract context around specific IDs (grep-like)
+const USAGE = `Extract Mode - Extract context around specific IDs (grep-like)
 
 USAGE:
-  deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/extract [options] <input-dir>
+  deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/extract [options] <input-path...>
 
 ARGUMENTS:
-  <input-dir>     Directory to scan for .md files
+  <input-path...> Directories or files to scan (one or more; directories are scanned recursively)
 
 OPTIONS:
   --ids <string>          Space-separated list of IDs to extract (REQUIRED)
+                          • With version (…#20251111a): exact match
+                          • Without version (…-4f7b2e): resolved by --versions
   --ids-file <path>       Path to file containing IDs (one per line)
   --output <file>         Output file path (default: STDOUT)
   --before <number>       Lines before target line (default: 3, max: 50)
   --after <number>        Lines after target line (default: 10, max: 50)
   --format <format>       Output format (default: markdown)
                           • markdown, json, simple
+  --versions <mode>       How to resolve IDs given without a version (default: latest)
+                          • latest: newest version only
+                          • all:    every version, newest first
+  --ext <list>            File extensions to scan, comma-separated (default: md)
+                          • e.g. md,rs,ts,tsx,mjs,sh
   --help                  Show this help message
 
 EXAMPLES:
@@ -63,37 +60,28 @@ EXAMPLES:
   deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/extract \\
     --ids-file ./ids.txt ./docs --before 5 --after 15
 
+  # ID without version: newest version / every version
+  deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/extract \\
+    --ids "req:apikey:security-4f7b2e" ./docs
+  deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/extract \\
+    --ids "req:apikey:security-4f7b2e" --versions all ./docs
+
+  # Scan several paths, including source code
+  deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/extract \\
+    --ids "req:apikey:security-4f7b2e" --ext md,rs,ts .specs src
+
   # Options can be in any order
   deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/extract \\
     --before 5 ./data --ids "req:test:id-abc#v1" --format json
-`);
-    Deno.exit(args.help ? 0 : 1);
-  }
+`;
 
-  try {
-    const idsSource = args.ids || args["ids-file"];
-    if (!idsSource) {
-      console.error("Error: Either --ids or --ids-file is required");
-      Deno.exit(1);
-    }
-
-    await runExtractMode({
-      inputDir: String(args._[0]),
-      outputFile: args.output ? String(args.output) : undefined,
-      idsSource,
-      isFile: Boolean(args["ids-file"]),
-      before: parseInt(args.before),
-      after: parseInt(args.after),
-      format: args.format as "json" | "markdown" | "simple",
-    });
-  } catch (error) {
-    console.error(
-      `Error: ${error instanceof Error ? error.message : String(error)}`,
-    );
-    Deno.exit(1);
-  }
-}
+/** The extract command */
+export const command: CommandSpec<ExtractModeOptions> = {
+  usage: USAGE,
+  parse: parseExtractArgs,
+  run: (options) => runExtractMode(options),
+};
 
 if (import.meta.main) {
-  await main();
+  await main(command);
 }

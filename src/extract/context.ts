@@ -5,6 +5,8 @@ import type {
   LocationContext,
   TraceabilityId,
 } from "../core/types.ts";
+import { readText } from "../core/io.ts";
+import { resolveTargetId } from "./resolver.ts";
 
 // Constants for constraints
 const MAX_LINES = 50;
@@ -34,32 +36,36 @@ export async function extractContext(
   const contexts: ExtractedContext[] = [];
   const notFound: string[] = [];
 
+  const mode = request.versions ?? "latest";
+
   // Process each target ID
   for (const targetId of request.ids) {
-    // Find all matching IDs
-    const matchedIds = ids.filter((id) => id.fullId === targetId);
+    const groups = resolveTargetId(targetId, ids, mode);
 
-    if (matchedIds.length === 0) {
+    if (groups.length === 0) {
       notFound.push(targetId);
       continue;
     }
 
-    // Extract context for each location
-    const locations: LocationContext[] = [];
-    for (const matched of matchedIds) {
-      const context = await extractLocationContext(
-        matched.filePath,
-        matched.lineNumber,
-        request.before,
-        request.after,
-      );
-      locations.push(context);
-    }
+    for (const group of groups) {
+      // Extract context for each location
+      const locations: LocationContext[] = [];
+      for (const matched of group.matches) {
+        const context = await extractLocationContext(
+          matched.filePath,
+          matched.lineNumber,
+          request.before,
+          request.after,
+        );
+        locations.push(context);
+      }
 
-    contexts.push({
-      id: targetId,
-      locations,
-    });
+      const extracted: ExtractedContext = { id: group.fullId, locations };
+      if (group.fullId !== targetId) {
+        extracted.query = targetId;
+      }
+      contexts.push(extracted);
+    }
   }
 
   return {
@@ -72,11 +78,7 @@ export async function extractContext(
 /**
  * Extract context from a specific file location
  *
- * @param filePath Absolute path to the file
- * @param lineNumber Target line number (1-indexed)
- * @param before Number of lines before (max: 50)
- * @param after Number of lines after (max: 50)
- * @returns Location context with before/after lines
+ * @throws TraceabilityError `PathNotFound` | `PathAccessDenied` | `FileReadFailed`
  */
 async function extractLocationContext(
   filePath: string,
@@ -84,13 +86,30 @@ async function extractLocationContext(
   before: number,
   after: number,
 ): Promise<LocationContext> {
+  const lines = (await readText(filePath)).split("\n");
+  return buildLocationContext(lines, filePath, lineNumber, before, after);
+}
+
+/**
+ * Build the context of a line from the lines of its file (pure)
+ *
+ * @param lines All lines of the file
+ * @param filePath Path recorded in the result
+ * @param lineNumber Target line number (1-indexed)
+ * @param before Number of lines before (max: 50)
+ * @param after Number of lines after (max: 50)
+ * @returns Location context with before/after lines
+ */
+export function buildLocationContext(
+  lines: readonly string[],
+  filePath: string,
+  lineNumber: number,
+  before: number,
+  after: number,
+): LocationContext {
   // Apply constraints
   before = Math.min(before, MAX_LINES);
   after = Math.min(after, MAX_LINES);
-
-  // Read entire file
-  const content = await Deno.readTextFile(filePath);
-  const lines = content.split("\n");
 
   // Convert line number to array index (1-indexed → 0-indexed)
   const targetIndex = lineNumber - 1;
@@ -99,37 +118,22 @@ async function extractLocationContext(
   const startIndex = Math.max(0, targetIndex - before);
   const endIndex = Math.min(lines.length - 1, targetIndex + after);
 
-  // Extract before lines
   const beforeLines = [];
   for (let i = startIndex; i < targetIndex; i++) {
-    beforeLines.push({
-      lineNumber: i + 1,
-      content: truncateLine(lines[i], MAX_LINE_LENGTH),
-    });
+    beforeLines.push({ lineNumber: i + 1, content: truncateLine(lines[i], MAX_LINE_LENGTH) });
   }
 
-  // Target line
-  const targetLine = truncateLine(lines[targetIndex], MAX_LINE_LENGTH);
-
-  // Extract after lines
   const afterLines = [];
   for (let i = targetIndex + 1; i <= endIndex; i++) {
-    afterLines.push({
-      lineNumber: i + 1,
-      content: truncateLine(lines[i], MAX_LINE_LENGTH),
-    });
+    afterLines.push({ lineNumber: i + 1, content: truncateLine(lines[i], MAX_LINE_LENGTH) });
   }
-
-  // Remove consecutive empty lines
-  const cleanedBeforeLines = removeConsecutiveEmptyLines(beforeLines);
-  const cleanedAfterLines = removeConsecutiveEmptyLines(afterLines);
 
   return {
     filePath,
     lineNumber,
-    targetLine,
-    beforeLines: cleanedBeforeLines,
-    afterLines: cleanedAfterLines,
+    targetLine: truncateLine(lines[targetIndex], MAX_LINE_LENGTH),
+    beforeLines: removeConsecutiveEmptyLines(beforeLines),
+    afterLines: removeConsecutiveEmptyLines(afterLines),
   };
 }
 

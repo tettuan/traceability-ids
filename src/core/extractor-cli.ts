@@ -1,3 +1,4 @@
+import { TraceabilityError } from "./errors.ts";
 /**
  * CLIツール（rg + sort）を使った高速ID抽出
  *
@@ -68,7 +69,11 @@ export async function extractUniqueIdsWithCli(
 
   if (!success) {
     const errorText = new TextDecoder().decode(stderr);
-    throw new Error(`CLI extraction failed: ${errorText}`);
+    throw new TraceabilityError({
+      kind: "ExternalCommandFailed",
+      command: "rg",
+      cause: errorText,
+    });
   }
 
   const text = new TextDecoder().decode(stdout);

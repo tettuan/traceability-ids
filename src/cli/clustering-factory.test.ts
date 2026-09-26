@@ -1,4 +1,5 @@
-import { assertEquals, assertThrows } from "@std/assert";
+import { assertEquals } from "@std/assert";
+import { ALGORITHM_NAMES } from "../core/options.ts";
 import { createClusteringAlgorithm } from "./clustering-factory.ts";
 import type { ClusteringOptions } from "./clustering-factory.ts";
 
@@ -27,17 +28,8 @@ Deno.test("createClusteringAlgorithm - dbscan", () => {
   assertEquals(typeof algo.cluster, "function");
 });
 
-Deno.test("createClusteringAlgorithm - unknown throws", () => {
-  assertThrows(
-    () => createClusteringAlgorithm("unknown", defaultOptions),
-    Error,
-    "Unknown clustering algorithm",
-  );
-});
-
 Deno.test("createClusteringAlgorithm - algorithms cluster empty input", () => {
-  const names = ["hierarchical", "kmeans", "dbscan"];
-  for (const name of names) {
+  for (const name of ALGORITHM_NAMES) {
     const algo = createClusteringAlgorithm(name, defaultOptions);
     const result = algo.cluster([], []);
     assertEquals(Array.isArray(result), true);

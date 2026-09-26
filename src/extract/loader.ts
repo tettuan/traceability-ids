@@ -1,32 +1,54 @@
 /**
- * Load IDs from command line argument or file
+ * Where the requested IDs come from.
  *
- * @param source Source string (either space-separated IDs or file path)
- * @param isFile Whether the source is a file path
- * @returns Array of ID strings
+ * @module
+ */
+
+import { assertNever } from "../core/errors.ts";
+import { readText } from "../core/io.ts";
+
+/** Source of requested IDs */
+export type IdsSource =
+  /** IDs given inline, separated by whitespace */
+  | { kind: "inline"; text: string }
+  /** A file with one ID per line (blank lines ignored) */
+  | { kind: "file"; path: string };
+
+/**
+ * Split inline text into IDs (whitespace-separated)
+ */
+export function parseInlineIds(text: string): string[] {
+  return text.split(/\s+/).filter((id) => id.length > 0);
+}
+
+/**
+ * Split file content into IDs (one per line, trimmed, blank lines ignored)
+ */
+export function parseIdLines(content: string): string[] {
+  return content
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+}
+
+/**
+ * Load the requested IDs
  *
  * @example
  * ```ts
- * // From command line
- * const ids = await loadIds("id1 id2 id3", false);
- *
- * // From file
- * const ids = await loadIds("./ids.txt", true);
+ * const ids = await loadIds({ kind: "inline", text: "id1 id2" });
+ * const fromFile = await loadIds({ kind: "file", path: "./ids.txt" });
  * ```
+ *
+ * @throws TraceabilityError `PathNotFound` | `PathAccessDenied` | `FileReadFailed` (file source)
  */
-export async function loadIds(
-  source: string,
-  isFile: boolean,
-): Promise<string[]> {
-  if (isFile) {
-    // Read from file
-    const content = await Deno.readTextFile(source);
-    return content
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0);
-  } else {
-    // Split by whitespace
-    return source.split(/\s+/).filter((id) => id.length > 0);
+export async function loadIds(source: IdsSource): Promise<string[]> {
+  switch (source.kind) {
+    case "inline":
+      return parseInlineIds(source.text);
+    case "file":
+      return parseIdLines(await readText(source.path));
+    default:
+      return assertNever(source);
   }
 }

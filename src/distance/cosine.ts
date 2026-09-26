@@ -1,3 +1,4 @@
+import { TraceabilityError } from "../core/errors.ts";
 import type { DistanceCalculator } from "./calculator.ts";
 
 /**
@@ -13,7 +14,12 @@ export class CosineDistance implements DistanceCalculator {
    */
   constructor(private n: number = 2) {
     if (n < 1) {
-      throw new Error("n-gram size must be at least 1");
+      throw new TraceabilityError({
+        kind: "InvalidParameter",
+        parameter: "n-gram size",
+        value: n,
+        constraint: "must be at least 1",
+      });
     }
   }
 

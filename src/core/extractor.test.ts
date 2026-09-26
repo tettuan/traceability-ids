@@ -282,3 +282,31 @@ Deno.test("deduplicateIds - no duplicates", () => {
   assertEquals(deduplicated[0].fullId, "req:test:id1-abc123#v1");
   assertEquals(deduplicated[1].fullId, "req:test:id2-xyz789#v1");
 });
+
+Deno.test("extractIdsFromFile - extracts IDs written without a version", async () => {
+  const testFile = await Deno.makeTempFile({ suffix: ".md" });
+
+  try {
+    const content = [
+      "ref: spc:stock:ranking-display-cache-4ff6bc.",
+      "full: spc:stock:ranking-display-cache-4ff6bc#20260810",
+      "hash only: req:a:b-abc123# is not an ID",
+      "inside word: req:a:b-abc123_x is not an ID",
+    ].join("\n");
+    await Deno.writeTextFile(testFile, content);
+
+    const ids = await extractIdsFromFile(testFile);
+
+    assertEquals(
+      ids.map((id) => [id.fullId, id.version, id.lineNumber]),
+      [
+        ["spc:stock:ranking-display-cache-4ff6bc", "", 1],
+        ["spc:stock:ranking-display-cache-4ff6bc#20260810", "20260810", 2],
+      ],
+    );
+    assertEquals(ids[0].semantic, "ranking-display-cache");
+    assertEquals(ids[0].hash, "4ff6bc");
+  } finally {
+    await Deno.remove(testFile);
+  }
+});

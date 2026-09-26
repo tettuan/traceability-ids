@@ -121,7 +121,7 @@ deno install --allow-read --allow-write jsr:@aidevtool/traceability-ids
 Or run directly without installation:
 
 ```bash
-deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids [options] <input-dir>
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids [options] <input-path...>
 ```
 
 ## Usage
@@ -212,6 +212,16 @@ deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/extract \
 # Custom context range and format
 deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/extract \
   --before 5 ./data --ids "req:test:id-abc#v1" --format json
+
+# ID without version: newest version (default) or every version
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/extract \
+  --ids "req:apikey:security-4f7b2e" ./docs
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/extract \
+  --ids "req:apikey:security-4f7b2e" --versions all ./docs
+
+# Scan specs and source code together
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/extract \
+  --ids "req:apikey:security-4f7b2e" --ext md,rs,ts .specs src src-tauri/src
 ```
 
 ### Graph Mode
@@ -290,6 +300,16 @@ The report analyzes 4 dimensions:
 
 ## Options
 
+### Common Options (all modes)
+
+| Option            | Description                                                  | Default | Values                     |
+| ----------------- | ------------------------------------------------------------ | ------- | -------------------------- |
+| `<input-path...>` | Directories or files to scan (one or more, dirs recursively) | -       | Paths (e.g. `.specs src`)  |
+| `--ext`           | File extensions to scan, comma-separated                     | `md`    | e.g. `md,rs,ts,tsx,mjs,sh` |
+
+A path that does not exist is an error (exit code 1) naming that path. Files given
+explicitly are scanned regardless of `--ext`.
+
 ### Cluster Mode Options
 
 | Option         | Description                    | Default        | Values                                                  |
@@ -317,14 +337,20 @@ The report analyzes 4 dimensions:
 
 ### Extract Mode Options (`/extract`)
 
-| Option       | Description                    | Default    | Values                       |
-| ------------ | ------------------------------ | ---------- | ---------------------------- |
-| `--ids`      | Space-separated IDs (REQUIRED) | -          | String                       |
-| `--ids-file` | Path to file with IDs          | -          | File path                    |
-| `--output`   | Output file path               | STDOUT     | File path                    |
-| `--before`   | Lines before target            | `3`        | Number (max: 50)             |
-| `--after`    | Lines after target             | `10`       | Number (max: 50)             |
-| `--format`   | Output format                  | `markdown` | `markdown`, `json`, `simple` |
+| Option       | Description                       | Default    | Values                       |
+| ------------ | --------------------------------- | ---------- | ---------------------------- |
+| `--ids`      | Space-separated IDs (REQUIRED)    | -          | String                       |
+| `--ids-file` | Path to file with IDs             | -          | File path                    |
+| `--output`   | Output file path                  | STDOUT     | File path                    |
+| `--before`   | Lines before target               | `3`        | Number (max: 50)             |
+| `--after`    | Lines after target                | `10`       | Number (max: 50)             |
+| `--format`   | Output format                     | `markdown` | `markdown`, `json`, `simple` |
+| `--versions` | Resolution of IDs without version | `latest`   | `latest`, `all`              |
+
+`--ids` accepts IDs with or without a version. With a version
+(`req:apikey:security-4f7b2e#20251111a`) the match is exact. Without a version
+(`req:apikey:security-4f7b2e`) it matches the newest version (`latest`) or every
+version, newest first (`all`). Versions are compared with digit runs as numbers.
 
 ### Graph Mode Options (`/graph`)
 
@@ -362,6 +388,41 @@ The report analyzes 4 dimensions:
 | `--k`              | K-Means cluster count           | `0` (auto)              | Number                                                |
 | `--epsilon`        | DBSCAN neighborhood radius      | `0.3`                   | Number                                                |
 | `--min-points`     | DBSCAN minimum neighbors        | `2`                     | Number                                                |
+
+## Errors and Exit Codes
+
+Every failure is a `TraceabilityError` with a typed `detail.kind`. The CLI prints
+`Error [<kind>]: <message>` to STDERR and exits with the code of the kind's category.
+
+| Exit | Category   | Kinds                                                              |
+| ---- | ---------- | ------------------------------------------------------------------ |
+| 0    | -          | Success                                                            |
+| 1    | unexpected | Anything that is not a `TraceabilityError`                         |
+| 2    | usage      | `MissingArgument`, `InvalidOptionValue`, `InvalidParameter`        |
+| 3    | input      | `PathNotFound`, `PathAccessDenied`, `ScanFailed`, `FileReadFailed` |
+| 4    | output     | `FileWriteFailed`                                                  |
+| 5    | external   | `ExternalCommandFailed`                                            |
+
+```ts
+import { isTraceabilityError, runExtractMode } from "jsr:@aidevtool/traceability-ids/mod";
+
+try {
+  await runExtractMode({
+    inputDir: [".specs", "src"],
+    extensions: ["md", "rs"],
+    ids: { kind: "inline", text: "req:auth:login-a1b2c3" },
+    before: 3,
+    after: 10,
+    format: "json",
+    versions: "latest",
+  });
+} catch (e) {
+  if (isTraceabilityError(e, "PathNotFound")) console.error(`missing: ${e.detail.path}`);
+}
+```
+
+Modes report progress as typed `ModeEvent`s through an injectable `ModeIO`
+(default: progress to STDERR, results to STDOUT).
 
 ## Distance Calculation Guide
 

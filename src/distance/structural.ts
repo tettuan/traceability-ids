@@ -1,3 +1,4 @@
+import { parseId } from "../core/id.ts";
 import type { DistanceCalculator } from "./calculator.ts";
 
 /**
@@ -48,8 +49,8 @@ export class StructuralDistance implements DistanceCalculator {
    */
   calculate(a: string, b: string): number {
     // IDをパースして各要素を取得
-    const partsA = this.parseId(a);
-    const partsB = this.parseId(b);
+    const partsA = parseId(a);
+    const partsB = parseId(b);
 
     // パースに失敗した場合はレーベンシュタイン距離を使用
     if (!partsA || !partsB) {
@@ -71,38 +72,6 @@ export class StructuralDistance implements DistanceCalculator {
       this.componentDistance(partsA.version, partsB.version);
 
     return totalDistance;
-  }
-
-  /**
-   * トレーサビリティIDをパースして各要素を取得
-   * @param id トレーサビリティID
-   * @returns パース結果（失敗時はnull）
-   */
-  private parseId(
-    id: string,
-  ): {
-    level: string;
-    scope: string;
-    semantic: string;
-    hash: string;
-    version: string;
-  } | null {
-    // パターン: {level}:{scope}:{semantic}-{hash}#{version}
-    const pattern =
-      /^([a-zA-Z0-9_-]+):([a-zA-Z0-9_-]+):([a-zA-Z0-9_-]+)-([a-zA-Z0-9]+)#([a-zA-Z0-9]+)$/;
-    const match = id.match(pattern);
-
-    if (!match) {
-      return null;
-    }
-
-    return {
-      level: match[1],
-      scope: match[2],
-      semantic: match[3],
-      hash: match[4],
-      version: match[5],
-    };
   }
 
   /**

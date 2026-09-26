@@ -1,98 +1,68 @@
-import { deduplicateIds, extractIds } from "../core/extractor.ts";
-import { scanFiles } from "../core/scanner.ts";
-import { createDistanceMatrix } from "../distance/calculator.ts";
-import { type ClusteringOptions, createClusteringAlgorithm } from "../cli/clustering-factory.ts";
+import { createClusteringAlgorithm } from "../cli/clustering-factory.ts";
 import { createDistanceCalculator } from "../cli/distance-factory.ts";
+import { consoleIO, type ModeIO } from "../core/events.ts";
+import { deduplicateIds } from "../core/extractor.ts";
+import type {
+  AlgorithmName,
+  ClusteringOptions,
+  ColorMode,
+  DistanceName,
+  Layout,
+} from "../core/options.ts";
+import { createDistanceMatrix } from "../distance/calculator.ts";
 import { buildGraphData } from "../visualization/graph_data.ts";
 import { generateHTML } from "../visualization/html_template.ts";
 import { classicalMDS } from "../visualization/mds.ts";
+import { collectIds, emitResult, type InputSpec } from "./pipeline.ts";
 
-export interface GraphModeOptions {
-  inputDir: string;
+/** Options of graph mode */
+export interface GraphModeOptions extends InputSpec {
+  /** Output HTML file */
   outputFile: string;
-  distance: string;
-  algorithm: string;
+  /** Distance calculator */
+  distance: DistanceName;
+  /** Clustering algorithm */
+  algorithm: AlgorithmName;
+  /** Algorithm parameters */
   clusteringOptions: ClusteringOptions;
+  /** Distance below which an edge is drawn */
   edgeThreshold: number;
-  colorBy: "cluster" | "scope" | "level";
-  layout: "force" | "mds";
+  /** Node coloring */
+  colorBy: ColorMode;
+  /** Initial layout */
+  layout: Layout;
 }
 
 /**
  * グラフ可視化モードを実行
+ *
+ * Events: ModeStarted → CalculatorSelected → AlgorithmSelected → (collectIds)
+ * → DistanceMatrixBuilt → ClustersFormed → GraphBuilt → OutputWritten
  */
-export async function runGraphMode(options: GraphModeOptions): Promise<void> {
-  console.error(`Distance calculator: ${options.distance}`);
+export async function runGraphMode(
+  options: GraphModeOptions,
+  io: ModeIO = consoleIO,
+): Promise<void> {
+  io.report({ type: "ModeStarted", mode: "graph" });
   const calculator = createDistanceCalculator(options.distance);
+  io.report({ type: "CalculatorSelected", name: options.distance });
+  const algorithm = createClusteringAlgorithm(options.algorithm, options.clusteringOptions);
+  io.report({ type: "AlgorithmSelected", name: options.algorithm });
 
-  console.error(`Clustering algorithm: ${options.algorithm}`);
-  const algorithm = createClusteringAlgorithm(
-    options.algorithm,
-    options.clusteringOptions,
-  );
+  const collected = await collectIds(options, io);
+  if (!collected) return;
+  const ids = deduplicateIds(collected.rawIds);
 
-  // 1. ファイルをスキャン
-  console.error(`Scanning files in: ${options.inputDir}`);
-  const files = await scanFiles(options.inputDir);
-  console.error(`Found ${files.length} markdown files`);
+  const matrix = createDistanceMatrix(ids.map((id) => id.fullId), calculator);
+  io.report({ type: "DistanceMatrixBuilt", size: ids.length });
 
-  if (files.length === 0) {
-    console.error("No markdown files found");
-    return;
-  }
-
-  // 2. IDを抽出・重複排除
-  console.error("Extracting traceability IDs...");
-  const rawIds = await extractIds(files);
-  const ids = deduplicateIds(rawIds);
-  console.error(`Extracted ${rawIds.length} IDs, deduplicated to ${ids.length}`);
-
-  if (ids.length === 0) {
-    console.error("No traceability IDs found");
-    return;
-  }
-
-  // 3. 距離行列を作成
-  console.error(`Calculating distance matrix using: ${calculator.name}`);
-  const matrix = createDistanceMatrix(
-    ids.map((id) => id.fullId),
-    calculator,
-  );
-
-  // 4. クラスタリング実行
-  console.error(`Clustering using: ${algorithm.name}`);
   const clusters = algorithm.cluster(ids, matrix);
-  console.error(`Created ${clusters.length} clusters`);
+  io.report({ type: "ClustersFormed", count: clusters.length });
 
-  // 5. MDS座標を計算（layoutがmdsの場合）
-  let mdsCoordinates: number[][] | undefined;
-  if (options.layout === "mds") {
-    console.error("Computing MDS coordinates...");
-    const mdsResult = classicalMDS(matrix, 3);
-    mdsCoordinates = mdsResult.coordinates;
-  }
+  const mdsCoordinates = options.layout === "mds" ? classicalMDS(matrix, 3).coordinates : undefined;
+  const graphData = buildGraphData(ids, matrix, clusters, options.edgeThreshold, mdsCoordinates);
+  io.report({ type: "GraphBuilt", nodes: graphData.nodes.length, links: graphData.links.length });
 
-  // 6. グラフデータを構築
-  console.error("Building graph data...");
-  const graphData = buildGraphData(
-    ids,
-    matrix,
-    clusters,
-    options.edgeThreshold,
-    mdsCoordinates,
-  );
-  console.error(
-    `Graph: ${graphData.nodes.length} nodes, ${graphData.links.length} edges`,
-  );
-
-  // 7. HTML生成・出力
-  console.error("Generating HTML...");
-  const html = generateHTML(graphData, {
-    colorBy: options.colorBy,
-    layout: options.layout,
-  });
-
-  console.error(`Writing to: ${options.outputFile}`);
-  await Deno.writeTextFile(options.outputFile, html);
-  console.error("Done!");
+  const html = generateHTML(graphData, { colorBy: options.colorBy, layout: options.layout });
+  await emitResult(io, html, options.outputFile);
 }

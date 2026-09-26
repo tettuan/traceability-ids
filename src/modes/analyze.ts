@@ -1,16 +1,23 @@
-import { deduplicateIds, extractIds } from "../core/extractor.ts";
-import { scanFiles } from "../core/scanner.ts";
-import { createDistanceMatrix } from "../distance/calculator.ts";
-import { type ClusteringOptions, createClusteringAlgorithm } from "../cli/clustering-factory.ts";
+import { createClusteringAlgorithm } from "../cli/clustering-factory.ts";
 import { createDistanceCalculator } from "../cli/distance-factory.ts";
+import { consoleIO, type ModeIO } from "../core/events.ts";
+import { deduplicateIds } from "../core/extractor.ts";
+import type { AlgorithmName, ClusteringOptions, DistanceName } from "../core/options.ts";
 import type { Cluster, TraceabilityId } from "../core/types.ts";
+import { createDistanceMatrix } from "../distance/calculator.ts";
+import { collectIds, emitResult, type InputSpec } from "./pipeline.ts";
 
-export interface AnalyzeModeOptions {
-  inputDir: string;
+/** Options of analyze mode */
+export interface AnalyzeModeOptions extends InputSpec {
+  /** Output report file */
   outputFile: string;
-  distance: string;
-  algorithm: string;
+  /** Distance calculator */
+  distance: DistanceName;
+  /** Clustering algorithm */
+  algorithm: AlgorithmName;
+  /** Algorithm parameters */
   clusteringOptions: ClusteringOptions;
+  /** Distance below which two IDs count as connected */
   edgeThreshold: number;
 }
 
@@ -540,7 +547,7 @@ function generateReport(
   ln("# トレーサビリティID 文書改善レポート");
   ln();
   ln(`- **生成日時**: ${now}`);
-  ln(`- **対象ディレクトリ**: ${options.inputDir}`);
+  ln(`- **対象ディレクトリ**: ${[options.inputDir].flat().join(", ")}`);
   ln(`- **ファイル数**: ${files.length}`);
   ln(`- **総ID数(重複込み)**: ${rawIds.length}`);
   ln(`- **ユニークID数**: ${uniqueIds.length}`);
@@ -813,61 +820,42 @@ function generateReport(
 
 // ─── メインエントリ ───
 
-export async function runAnalyzeMode(options: AnalyzeModeOptions): Promise<void> {
-  console.error(`Distance calculator: ${options.distance}`);
+/**
+ * 分析モードを実行
+ *
+ * Events: ModeStarted → CalculatorSelected → AlgorithmSelected → (collectIds)
+ * → DistanceMatrixBuilt → ClustersFormed → AnalysisCompleted ×4 → OutputWritten
+ */
+export async function runAnalyzeMode(
+  options: AnalyzeModeOptions,
+  io: ModeIO = consoleIO,
+): Promise<void> {
+  io.report({ type: "ModeStarted", mode: "analyze" });
   const calculator = createDistanceCalculator(options.distance);
-
-  console.error(`Clustering algorithm: ${options.algorithm}`);
+  io.report({ type: "CalculatorSelected", name: options.distance });
   const algorithm = createClusteringAlgorithm(options.algorithm, options.clusteringOptions);
+  io.report({ type: "AlgorithmSelected", name: options.algorithm });
 
-  // 1. ファイルスキャン
-  console.error(`Scanning files in: ${options.inputDir}`);
-  const files = await scanFiles(options.inputDir);
-  console.error(`Found ${files.length} markdown files`);
-
-  if (files.length === 0) {
-    console.error("No markdown files found");
-    return;
-  }
-
-  // 2. ID抽出
-  console.error("Extracting traceability IDs...");
-  const rawIds = await extractIds(files);
+  const collected = await collectIds(options, io);
+  if (!collected) return;
+  const { files, rawIds } = collected;
   const uniqueIds = deduplicateIds(rawIds);
-  console.error(`Extracted ${rawIds.length} IDs, deduplicated to ${uniqueIds.length}`);
 
-  if (uniqueIds.length === 0) {
-    console.error("No traceability IDs found");
-    return;
-  }
+  const matrix = createDistanceMatrix(uniqueIds.map((id) => id.fullId), calculator);
+  io.report({ type: "DistanceMatrixBuilt", size: uniqueIds.length });
 
-  // 3. 距離行列
-  console.error(`Calculating distance matrix using: ${calculator.name}`);
-  const matrix = createDistanceMatrix(
-    uniqueIds.map((id) => id.fullId),
-    calculator,
-  );
-
-  // 4. クラスタリング
-  console.error(`Clustering using: ${algorithm.name}`);
   const clusters = algorithm.cluster(uniqueIds, matrix);
-  console.error(`Created ${clusters.length} clusters`);
+  io.report({ type: "ClustersFormed", count: clusters.length });
 
-  // 5. 4観点の分析
-  console.error("Analyzing structure...");
   const structure = analyzeStructure(uniqueIds, rawIds, files);
-
-  console.error("Analyzing detail level...");
+  io.report({ type: "AnalysisCompleted", aspect: "structure" });
   const detail = analyzeDetail(uniqueIds);
-
-  console.error("Analyzing duplication...");
+  io.report({ type: "AnalysisCompleted", aspect: "detail" });
   const duplication = analyzeDuplication(uniqueIds, rawIds, matrix);
-
-  console.error("Analyzing gaps...");
+  io.report({ type: "AnalysisCompleted", aspect: "duplication" });
   const gaps = analyzeGaps(uniqueIds, matrix, options.edgeThreshold);
+  io.report({ type: "AnalysisCompleted", aspect: "gaps" });
 
-  // 6. レポート生成
-  console.error("Generating report...");
   const report = generateReport(
     options,
     files,
@@ -879,8 +867,5 @@ export async function runAnalyzeMode(options: AnalyzeModeOptions): Promise<void>
     duplication,
     gaps,
   );
-
-  console.error(`Writing to: ${options.outputFile}`);
-  await Deno.writeTextFile(options.outputFile, report);
-  console.error("Done!");
+  await emitResult(io, report, options.outputFile);
 }
