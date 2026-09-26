@@ -17,6 +17,7 @@
  * @module
  */
 
+import { INPUT_OPTIONS_HELP } from "./src/cli/help.ts";
 import { parseListArgs } from "./src/cli/args.ts";
 import { type CommandSpec, main } from "./src/cli/runner.ts";
 import { runListMode } from "./src/modes/list.ts";
@@ -43,9 +44,7 @@ OPTIONS:
                           • count: Most occurrences first
   --batch-size <number>   Split output into batches (default: 0 = no split)
                           Requires --output. Creates files like output-001.json
-  --ext <list>            File extensions to scan, comma-separated (default: md)
-                          • e.g. md,rs,ts,tsx,mjs,sh
-  --help                  Show this help message
+${INPUT_OPTIONS_HELP}
 
 EXAMPLES:
   # List all IDs as JSON to stdout

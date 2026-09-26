@@ -143,6 +143,7 @@ deno run --allow-read --allow-write list.ts [options] <input-path...>
 --sort <fullId|scope|level|count>       Sort order (default: fullId)
 --batch-size <number>                   Entries per batch (default: 0 = no split, requires --output)
 --ext <list>                            Extensions to scan, comma-separated (default: md)
+--skip-frontmatter                      Ignore IDs in frontmatter (body only)
 ```
 
 Invalid values (e.g. `--sort name`, `--batch-size -1`) fail with

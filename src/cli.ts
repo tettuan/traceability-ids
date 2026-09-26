@@ -16,6 +16,7 @@
  * @module
  */
 
+import { INPUT_OPTIONS_HELP } from "./cli/help.ts";
 import { parseClusterArgs } from "./cli/args.ts";
 import { type CommandSpec, main } from "./cli/runner.ts";
 import { runClusterMode } from "./modes/cluster.ts";
@@ -64,9 +65,7 @@ CLUSTER MODE OPTIONS:
   --epsilon <number>      Maximum distance for DBSCAN neighborhood (default: 0.3)
   --min-points <number>   Minimum neighbors for DBSCAN core points (default: 2)
 
-  --ext <list>            File extensions to scan, comma-separated (default: md)
-                          • e.g. md,rs,ts,tsx,mjs,sh
-  --help                  Show this help message
+${INPUT_OPTIONS_HELP}
 
 EXAMPLES:
   # Output to STDOUT

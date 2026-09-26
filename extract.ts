@@ -17,11 +17,12 @@
  * @module
  */
 
+import { allowMissingOptionHelp, INPUT_OPTIONS_HELP, versionsOptionHelp } from "./src/cli/help.ts";
 import { parseExtractArgs } from "./src/cli/args.ts";
 import { type CommandSpec, main } from "./src/cli/runner.ts";
 import { runExtractMode } from "./src/modes/extract.ts";
 import type { ExtractCommandOptions } from "./src/cli/args.ts";
-import { COMPLETE } from "./src/core/outcome.ts";
+import { applyAllowMissing } from "./src/core/outcome.ts";
 
 const USAGE = `Extract Mode - Extract context around specific IDs (grep-like)
 
@@ -41,13 +42,9 @@ OPTIONS:
   --after <number>        Lines after target line (default: 10, max: 50)
   --format <format>       Output format (default: markdown)
                           • markdown, json, simple
-  --versions <mode>       How to resolve IDs given without a version (default: latest)
-                          • latest: newest version only
-                          • all:    every version, newest first
-  --allow-missing         Exit 0 even when some IDs are not found (default: exit 1)
-  --ext <list>            File extensions to scan, comma-separated (default: md)
-                          • e.g. md,rs,ts,tsx,mjs,sh
-  --help                  Show this help message
+${versionsOptionHelp("IDs")}
+${allowMissingOptionHelp("some IDs are")}
+${INPUT_OPTIONS_HELP}
 
 EXAMPLES:
   # Output to STDOUT
@@ -81,10 +78,7 @@ EXAMPLES:
 export const command: CommandSpec<ExtractCommandOptions> = {
   usage: USAGE,
   parse: parseExtractArgs,
-  run: async (options) => {
-    const outcome = await runExtractMode(options);
-    return options.allowMissing ? COMPLETE : outcome;
-  },
+  run: async (options) => applyAllowMissing(await runExtractMode(options), options.allowMissing),
 };
 
 if (import.meta.main) {

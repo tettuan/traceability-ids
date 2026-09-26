@@ -1,5 +1,6 @@
 import { assertEquals } from "@std/assert";
-import { buildGraphData } from "./graph_data.ts";
+import { RELATION_KINDS, type RelationEdge } from "../core/relations.ts";
+import { buildGraphData, isRelationLink, LINK_KINDS, SIMILARITY_LINK } from "./graph_data.ts";
 import type { Cluster, TraceabilityId } from "../core/types.ts";
 
 function makeId(fullId: string, opts?: Partial<TraceabilityId>): TraceabilityId {
@@ -103,4 +104,32 @@ Deno.test("buildGraphData - node properties preserved", () => {
   assertEquals(node?.level, "req");
   assertEquals(node?.scope, "auth");
   assertEquals(node?.filePath, "test.md");
+});
+
+Deno.test("buildGraphData - relations of every kind are drawn regardless of threshold", () => {
+  const relations: RelationEdge[] = RELATION_KINDS.map((kind) => ({
+    kind,
+    source: ids[0].fullId,
+    target: ids[2].fullId,
+    declaration: {
+      kind,
+      source: ids[0].fullId,
+      target: ids[2].fullId,
+      filePath: "a.md",
+      lineNumber: 1,
+    },
+  }));
+  const unknown: RelationEdge = { ...relations[0], target: "req:x:gone-zzz#v1" };
+  const data = buildGraphData(ids, matrix, clusters, 0, undefined, [...relations, unknown]);
+  assertEquals(
+    data.links.map((l) => [l.kind, l.source, l.target, l.distance, isRelationLink(l)]),
+    RELATION_KINDS.map((kind) => [kind, ids[0].fullId, ids[2].fullId, matrix[0][2], true]),
+  );
+});
+
+Deno.test("buildGraphData - similarity links are the only non-relation kind", () => {
+  const data = buildGraphData(ids, matrix, clusters, 1);
+  assertEquals(new Set(data.links.map((l) => l.kind)), new Set([SIMILARITY_LINK]));
+  assertEquals(data.links.some(isRelationLink), false);
+  assertEquals(LINK_KINDS, [SIMILARITY_LINK, ...RELATION_KINDS]);
 });

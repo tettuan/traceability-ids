@@ -7,7 +7,7 @@ import { defineScenario, type ScenarioContext } from "../testing/scenario.ts";
 import { runAnalyzeMode } from "./analyze.ts";
 import { runClusterMode } from "./cluster.ts";
 import { type ExtractModeOptions, runExtractMode } from "./extract.ts";
-import { runGraphMode } from "./graph.ts";
+import { type GraphModeOptions, runGraphMode } from "./graph.ts";
 import { runListMode } from "./list.ts";
 import { runSearchMode } from "./search.ts";
 
@@ -344,6 +344,109 @@ defineScenario({
   },
 });
 
+/** IDs of the relation scenarios; fixtures and expectations are built from these */
+const REL = {
+  login: "req:auth:login-a1b2c3",
+  session: "dsg:auth:session-d4e5f6#v1",
+  gone: "spc:auth:gone-g7h8i9#v1",
+} as const;
+const LOGIN_VERSIONS = ["v1", "v2"] as const;
+const LOGIN_LATEST = `${REL.login}#${LOGIN_VERSIONS[1]}`;
+const OVERVIEW_TARGET = `${REL.login}#${LOGIN_VERSIONS[0]}`;
+
+const RELATED_DOCS = {
+  "docs/req.md": LOGIN_VERSIONS.map((v) => `# ${REL.login}#${v}\n`).join(""),
+  "docs/dsg.md": [
+    "---",
+    "traceability:",
+    "  - id:",
+    `      full: ${REL.session}`,
+    "    derived_from:",
+    `      - ${REL.login}`,
+    "    trace_to:",
+    `      - ${REL.gone}`,
+    "---",
+    "# Session",
+    "",
+  ].join("\n"),
+  "docs/overview.md": `---\ntype: requirements\ntrace_to:\n  - ${OVERVIEW_TARGET}\n---\n`,
+};
+
+function graphOptions(
+  ctx: ScenarioContext,
+  overrides: Partial<GraphModeOptions> = {},
+): GraphModeOptions {
+  return {
+    inputDir: ctx.path("docs"),
+    outputFile: ctx.path("out/graph.html"),
+    distance: "structural" as const,
+    algorithm: "hierarchical" as const,
+    clusteringOptions: CLUSTERING,
+    edgeThreshold: 0.5,
+    colorBy: "cluster" as const,
+    layout: "force" as const,
+    ...overrides,
+  };
+}
+
+defineScenario({
+  name: "graph: warns about a missing source, reports the broken link, then draws relations",
+  given: RELATED_DOCS,
+  when: (ctx) => runGraphMode(graphOptions(ctx), ctx.io),
+  then: {
+    order: "exact",
+    events: [
+      { type: "ModeStarted", mode: "graph" },
+      { type: "CalculatorSelected" },
+      { type: "AlgorithmSelected" },
+      { type: "ScanStarted", frontmatter: "include" },
+      { type: "FilesScanned", count: 3 },
+      { type: "IdsExtracted" },
+      { type: "RelationIssueFound" },
+      { type: "RelationsResolved", declared: 2, edges: 1, broken: 1 },
+      { type: "BrokenRelationFound" },
+      { type: "DistanceMatrixBuilt" },
+      { type: "ClustersFormed" },
+      { type: "GraphBuilt", relations: 1 },
+      { type: "OutputWritten" },
+    ],
+    outcome: {
+      kind: "success",
+      result: { status: "partial", missing: [REL.gone] },
+    },
+    verify: async (ctx) => {
+      const issues = ctx.io.events.flatMap((e) => e.type === "RelationIssueFound" ? [e.issue] : []);
+      assertEquals(issues, [{
+        kind: "SourceMissing",
+        relation: "trace_to",
+        targets: [OVERVIEW_TARGET],
+        filePath: ctx.path("docs/overview.md"),
+        lineNumber: 4,
+      }]);
+      const html = await Deno.readTextFile(ctx.path("out/graph.html"));
+      assertStringIncludes(
+        html,
+        JSON.stringify({ source: REL.session, target: LOGIN_LATEST }).slice(1, -1),
+      );
+      assertStringIncludes(html, JSON.stringify({ kind: "derived_from" }).slice(1, -1));
+    },
+  },
+});
+
+defineScenario({
+  name: "graph: --skip-frontmatter reads no relations from frontmatter",
+  given: RELATED_DOCS,
+  when: (ctx) => runGraphMode(graphOptions(ctx, { frontmatter: "skip" }), ctx.io),
+  then: {
+    events: [
+      { type: "RelationsResolved", declared: 0, edges: 0, broken: 0 },
+      { type: "GraphBuilt", relations: 0 },
+    ],
+    absent: ["RelationIssueFound", "BrokenRelationFound"],
+    outcome: { kind: "success", result: { status: "complete" } },
+  },
+});
+
 defineScenario({
   name: "analyze: the four aspects run in order before the report is written",
   given: DOCS,
@@ -381,5 +484,47 @@ defineScenario({
     events: [{ type: "ModeStarted" }],
     absent: ["TargetsLoaded", "ScanStarted"],
     outcome: { kind: "error", error: { kind: "EmptyIdList" } },
+  },
+});
+
+// ── frontmatter ──
+
+const WITH_FRONTMATTER = {
+  "docs/a.md": "---\nderived_from:\n  - req:up:origin-9f9f9f#v1\n---\n# req:auth:login-a1b2c3#v1\n",
+} as const;
+
+defineScenario({
+  name: "extract: --skip-frontmatter leaves IDs only in frontmatter missing",
+  given: WITH_FRONTMATTER,
+  when: (ctx) =>
+    runExtractMode(
+      extractOptions(ctx, {
+        ids: { kind: "inline", text: "req:up:origin-9f9f9f req:auth:login-a1b2c3" },
+        frontmatter: "skip",
+      }),
+      ctx.io,
+    ),
+  then: {
+    events: [
+      { type: "ScanStarted", frontmatter: "skip" },
+      { type: "IdsExtracted", total: 1 },
+      { type: "ContextsResolved", found: 1, notFound: 1 },
+    ],
+    outcome: { kind: "success", result: { status: "partial", missing: ["req:up:origin-9f9f9f"] } },
+    verify: (ctx) => assertStringIncludes(ctx.io.printed.join(""), "a.md:5"),
+  },
+});
+
+defineScenario({
+  name: "list: frontmatter is included by default",
+  given: WITH_FRONTMATTER,
+  when: (ctx) =>
+    runListMode(
+      { inputDir: ctx.path("docs"), format: "simple", sort: "fullId", batchSize: 0 },
+      ctx.io,
+    ),
+  then: {
+    events: [{ type: "ScanStarted", frontmatter: "include" }, { type: "IdsExtracted", total: 2 }],
+    outcome: { kind: "success", result: { status: "complete" } },
   },
 });

@@ -1,4 +1,5 @@
 import { assertEquals, assertStringIncludes, assertThrows } from "@std/assert";
+import { DEFAULT_VERSION_MATCH, VERSION_MATCH_MODES } from "../core/options.ts";
 import { TraceabilityError } from "../core/errors.ts";
 import {
   parseAnalyzeArgs,
@@ -29,6 +30,7 @@ Deno.test("args - extract builds typed options", () => {
       options: {
         inputDir: ["d", "s"],
         extensions: ["md", "rs"],
+        frontmatter: "include",
         outputFile: undefined,
         ids: { kind: "inline", text: "a:b:c-1 a:b:c-2" },
         before: 3,
@@ -41,8 +43,24 @@ Deno.test("args - extract builds typed options", () => {
   );
   const fromFile = parseExtractArgs(["--ids-file", "ids.txt", "d"]);
   assertEquals(fromFile.kind === "run" && fromFile.options.ids, { kind: "file", path: "ids.txt" });
+  const skip = parseListArgs(["--skip-frontmatter", "d"]);
+  assertEquals(skip.kind === "run" && skip.options.frontmatter, "skip");
   const allow = parseExtractArgs(["--ids", "x", "--allow-missing", "d"]);
   assertEquals(allow.kind === "run" && allow.options.allowMissing, true);
+  for (const parse of [parseExtractArgs, parseGraphArgs]) {
+    for (const mode of VERSION_MATCH_MODES) {
+      const parsed = parse(["--ids", "x", "--versions", mode, "--allow-missing", "d"]);
+      assertEquals(
+        parsed.kind === "run" && [parsed.options.versions, parsed.options.allowMissing],
+        [mode, true],
+      );
+    }
+    const defaults = parse(["--ids", "x", "d"]);
+    assertEquals(
+      defaults.kind === "run" && [defaults.options.versions, defaults.options.allowMissing],
+      [DEFAULT_VERSION_MATCH, false],
+    );
+  }
 });
 
 Deno.test("args - missing arguments are MissingArgument", () => {
@@ -69,6 +87,7 @@ Deno.test("args - invalid values name the option", () => {
     [() => parseExtractArgs(["d", "--ids", "x", "--versions", "newest"]), "--versions"],
     [() => parseExtractArgs(["d", "--ids", "x", "--before", "-1"]), "--before"],
     [() => parseGraphArgs(["d", "--layout", "grid"]), "--layout"],
+    [() => parseGraphArgs(["d", "--versions", "newest"]), "--versions"],
     [() => parseAnalyzeArgs(["d", "--edge-threshold", "x"]), "--edge-threshold"],
     [() => parseListArgs(["d", "--sort", "name"]), "--sort"],
     [() => parseListArgs(["d", "--ext", ","]), "--ext"],

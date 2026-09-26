@@ -14,6 +14,8 @@ import {
   CLUSTER_FORMATS,
   type ClusteringOptions,
   COLOR_MODES,
+  DEFAULT_FRONTMATTER,
+  DEFAULT_VERSION_MATCH,
   DISTANCE_NAMES,
   EXTRACT_FORMATS,
   LAYOUTS,
@@ -37,6 +39,12 @@ import type { SearchModeOptions } from "../modes/search.ts";
 /** Options of the extract command: mode options plus exit code policy */
 export interface ExtractCommandOptions extends ExtractModeOptions {
   /** Exit 0 even when some requested IDs are not found */
+  allowMissing: boolean;
+}
+
+/** Options of the graph command: mode options plus exit code policy */
+export interface GraphCommandOptions extends GraphModeOptions {
+  /** Exit 0 even when some relation targets are not found */
   allowMissing: boolean;
 }
 
@@ -68,7 +76,7 @@ function flags(
 ): Flags {
   return parseArgs([...argv], {
     string: ["ext", ...string],
-    boolean: ["help", ...boolean],
+    boolean: ["help", "skip-frontmatter", ...boolean],
     default: defaults,
   }) as Flags;
 }
@@ -78,7 +86,7 @@ function optional(value: unknown): string | undefined {
 }
 
 /**
- * Input paths and extensions
+ * Input paths, extensions and frontmatter policy
  *
  * @throws TraceabilityError `MissingArgument` | `InvalidOptionValue`
  */
@@ -89,6 +97,7 @@ function inputSpec(args: Flags): Required<InputSpec> {
   return {
     inputDir: args._.map(String),
     extensions: parseExtensions(optional(args.ext)),
+    frontmatter: args["skip-frontmatter"] === true ? "skip" : DEFAULT_FRONTMATTER,
   };
 }
 
@@ -153,7 +162,7 @@ export function parseExtractArgs(argv: readonly string[]): ParsedArgs<ExtractCom
     before: "3",
     after: "10",
     format: "markdown",
-    versions: "latest",
+    versions: DEFAULT_VERSION_MATCH,
   }, ["allow-missing"]);
   if (args.help) return { kind: "help" };
   const spec = inputSpec(args);
@@ -181,7 +190,7 @@ export function parseExtractArgs(argv: readonly string[]): ParsedArgs<ExtractCom
 }
 
 /** Parse arguments of graph mode */
-export function parseGraphArgs(argv: readonly string[]): ParsedArgs<GraphModeOptions> {
+export function parseGraphArgs(argv: readonly string[]): ParsedArgs<GraphCommandOptions> {
   const args = flags(argv, [
     ...CLUSTERING_FLAGS,
     "output",
@@ -189,6 +198,7 @@ export function parseGraphArgs(argv: readonly string[]): ParsedArgs<GraphModeOpt
     "edge-threshold",
     "color-by",
     "layout",
+    "versions",
   ], {
     ...CLUSTERING_DEFAULTS,
     output: "tmp/graph-3d.html",
@@ -196,7 +206,8 @@ export function parseGraphArgs(argv: readonly string[]): ParsedArgs<GraphModeOpt
     "edge-threshold": "0.5",
     "color-by": "cluster",
     layout: "force",
-  });
+    versions: DEFAULT_VERSION_MATCH,
+  }, ["allow-missing"]);
   if (args.help) return { kind: "help" };
   return {
     kind: "run",
@@ -209,6 +220,8 @@ export function parseGraphArgs(argv: readonly string[]): ParsedArgs<GraphModeOpt
       colorBy: parseChoice("--color-by", args["color-by"], COLOR_MODES),
       layout: parseChoice("--layout", args.layout, LAYOUTS),
       clusteringOptions: clusteringOptions(args),
+      versions: parseChoice("--versions", args.versions, VERSION_MATCH_MODES),
+      allowMissing: args["allow-missing"] === true,
     },
   };
 }

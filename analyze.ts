@@ -17,6 +17,7 @@
  * @module
  */
 
+import { INPUT_OPTIONS_HELP } from "./src/cli/help.ts";
 import { parseAnalyzeArgs } from "./src/cli/args.ts";
 import { type CommandSpec, main } from "./src/cli/runner.ts";
 import { runAnalyzeMode } from "./src/modes/analyze.ts";
@@ -41,9 +42,7 @@ OPTIONS:
   --k <number>            K-Means: number of clusters (default: auto)
   --epsilon <number>      DBSCAN: neighborhood radius (default: 0.3)
   --min-points <number>   DBSCAN: minimum neighbors (default: 2)
-  --ext <list>            File extensions to scan, comma-separated (default: md)
-                          • e.g. md,rs,ts,tsx,mjs,sh
-  --help                  Show this help message
+${INPUT_OPTIONS_HELP}
 
 EXAMPLES:
   # Basic usage

@@ -32,3 +32,10 @@ export const OUTCOME_EXIT_CODES: { readonly [S in ModeOutcome["status"]]: number
 export function lookupOutcome(missing: readonly string[]): ModeOutcome {
   return isNonEmpty(missing) ? { status: "partial", missing } : COMPLETE;
 }
+
+/**
+ * Outcome under the `--allow-missing` policy: when allowed, missing IDs do not make a run partial
+ */
+export function applyAllowMissing(outcome: ModeOutcome, allowMissing: boolean): ModeOutcome {
+  return allowMissing ? COMPLETE : outcome;
+}

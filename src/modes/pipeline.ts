@@ -8,6 +8,7 @@ import type { ModeIO } from "../core/events.ts";
 import { extractIds } from "../core/extractor.ts";
 import { writeText } from "../core/io.ts";
 import { DEFAULT_EXTENSIONS, scanFiles } from "../core/scanner.ts";
+import { DEFAULT_FRONTMATTER, type FrontmatterPolicy } from "../core/options.ts";
 import type { TraceabilityId } from "../core/types.ts";
 
 /** What to scan */
@@ -16,6 +17,8 @@ export interface InputSpec {
   inputDir: string | readonly string[];
   /** File extensions to scan (default: md) */
   extensions?: readonly string[];
+  /** Whether IDs in frontmatter are extracted (default: include) */
+  frontmatter?: FrontmatterPolicy;
 }
 
 /** Whether a mode stops (`stop`) or goes on with empty results (`continue`) when nothing is found */
@@ -47,8 +50,9 @@ export async function collectIds(
 ): Promise<CollectedIds | null> {
   const paths = typeof input.inputDir === "string" ? [input.inputDir] : input.inputDir;
   const extensions = input.extensions ?? DEFAULT_EXTENSIONS;
+  const frontmatter = input.frontmatter ?? DEFAULT_FRONTMATTER;
 
-  io.report({ type: "ScanStarted", paths, extensions });
+  io.report({ type: "ScanStarted", paths, extensions, frontmatter });
   const files = await scanFiles(paths, extensions);
   io.report({ type: "FilesScanned", count: files.length });
   if (files.length === 0 && emptyPolicy === "stop") {
@@ -56,7 +60,7 @@ export async function collectIds(
     return null;
   }
 
-  const rawIds = await extractIds(files);
+  const rawIds = await extractIds(files, frontmatter);
   const unique = new Set(rawIds.map((id) => id.fullId)).size;
   io.report({ type: "IdsExtracted", total: rawIds.length, unique });
   if (rawIds.length === 0 && emptyPolicy === "stop") {

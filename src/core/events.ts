@@ -9,7 +9,13 @@
  */
 
 import { assertNever } from "./errors.ts";
-import type { AlgorithmName, DistanceName } from "./options.ts";
+import type { AlgorithmName, DistanceName, FrontmatterPolicy } from "./options.ts";
+import {
+  describeBrokenRelation,
+  describeRelationIssue,
+  type RelationDeclaration,
+  type RelationIssue,
+} from "./relations.ts";
 
 /** Name of a mode */
 export type ModeName = "cluster" | "search" | "extract" | "graph" | "analyze" | "list";
@@ -26,7 +32,12 @@ export type ModeEvent =
   | { type: "CalculatorSelected"; name: DistanceName }
   | { type: "AlgorithmSelected"; name: AlgorithmName }
   | { type: "TargetsLoaded"; count: number }
-  | { type: "ScanStarted"; paths: readonly string[]; extensions: readonly string[] }
+  | {
+    type: "ScanStarted";
+    paths: readonly string[];
+    extensions: readonly string[];
+    frontmatter: FrontmatterPolicy;
+  }
   | { type: "FilesScanned"; count: number }
   | { type: "IdsExtracted"; total: number; unique: number }
   | { type: "Stopped"; reason: EmptyReason }
@@ -35,7 +46,10 @@ export type ModeEvent =
   | { type: "SearchCompleted"; results: number }
   | { type: "ContextsResolved"; found: number; notFound: number }
   | { type: "AnalysisCompleted"; aspect: AnalysisAspect }
-  | { type: "GraphBuilt"; nodes: number; links: number }
+  | { type: "RelationIssueFound"; issue: RelationIssue }
+  | { type: "RelationsResolved"; declared: number; edges: number; broken: number }
+  | { type: "BrokenRelationFound"; relation: RelationDeclaration }
+  | { type: "GraphBuilt"; nodes: number; links: number; relations: number }
   | { type: "OutputWritten"; path: string }
   | { type: "OutputPrinted"; length: number };
 
@@ -75,7 +89,8 @@ export function describeEvent(event: ModeEvent): string {
     case "TargetsLoaded":
       return `Target IDs: ${event.count}`;
     case "ScanStarted":
-      return `Scanning ${event.paths.join(", ")} (${event.extensions.join(",")})`;
+      return `Scanning ${event.paths.join(", ")} (${event.extensions.join(",")}` +
+        `${event.frontmatter === "skip" ? ", skipping frontmatter" : ""})`;
     case "FilesScanned":
       return `Found ${event.count} files`;
     case "IdsExtracted":
@@ -92,8 +107,14 @@ export function describeEvent(event: ModeEvent): string {
       return `Found ${event.found} IDs, not found ${event.notFound} IDs`;
     case "AnalysisCompleted":
       return `Analyzed ${event.aspect}`;
+    case "RelationIssueFound":
+      return `Warning: ${describeRelationIssue(event.issue)}`;
+    case "RelationsResolved":
+      return `Relations: ${event.declared} declared, ${event.edges} edges, ${event.broken} broken`;
+    case "BrokenRelationFound":
+      return `Broken relation: ${describeBrokenRelation(event.relation)} (target not found)`;
     case "GraphBuilt":
-      return `Graph: ${event.nodes} nodes, ${event.links} edges`;
+      return `Graph: ${event.nodes} nodes, ${event.links} edges (${event.relations} relations)`;
     case "OutputWritten":
       return `Wrote ${event.path}`;
     case "OutputPrinted":
