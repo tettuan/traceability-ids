@@ -15,6 +15,7 @@ src/
 │   ├── options.ts            # オプション語彙（const タプル）とパーサー
 │   ├── events.ts             # ModeEvent / ModeIO / consoleIO
 │   ├── io.ts                 # 型付きエラー付きのファイル読み書き
+│   ├── relations.ts          # 関係（derived_from / trace_to）の種別・宣言・警告の型
 │   ├── extractor.ts          # ID抽出
 │   ├── extractor-cli.ts      # rg + sort による高速抽出（外部コマンド）
 │   └── scanner.ts            # ファイルスキャン（複数パス・拡張子指定）
@@ -35,6 +36,7 @@ src/
 │   ├── context.ts            # コンテキスト抽出
 │   ├── resolver.ts           # 要求IDの解決（バージョン省略IDの latest / all）
 │   └── loader.ts             # ID一覧の読み込み（IdsSource）
+├── relations/                # 関係の抽出（YAML 領域・起点・値）と解決（版・存在・リンク切れ）
 ├── list/
 │   └── aggregator.ts         # List mode の集約・バッチ分割
 ├── visualization/            # Graph mode（MDS, グラフデータ, HTML）
@@ -96,7 +98,7 @@ analyze は既定のファイルに出力）。
 
 - **`--ext <list>`** - 走査対象の拡張子（カンマ区切り、デフォルト: `md`）
   - 例: `md,rs,ts,tsx,mjs,sh`（先頭ドットは有無を問わない）
-- **`--skip-frontmatter`** - frontmatter 内の ID を抽出しない（`FrontmatterPolicy`: `include` / `skip`、判定は `src/core/frontmatter.ts`）
+- **`--skip-frontmatter`** - frontmatter 内の ID（graph モードでは関係も）を抽出しない（`FrontmatterPolicy`: `include` / `skip`、判定は `src/core/frontmatter.ts`）
 
 - **`--output <file>`** - 出力先ファイルパス（デフォルト: STDOUT）
 

@@ -1,6 +1,6 @@
 import { frontmatterLineCount } from "./frontmatter.ts";
 import { findIds } from "./id.ts";
-import type { FrontmatterPolicy } from "./options.ts";
+import { DEFAULT_FRONTMATTER, type FrontmatterPolicy } from "./options.ts";
 import { readText } from "./io.ts";
 import type { TraceabilityId } from "./types.ts";
 
@@ -14,7 +14,7 @@ import type { TraceabilityId } from "./types.ts";
 export function extractIdsFromText(
   content: string,
   filePath: string,
-  frontmatter: FrontmatterPolicy = "include",
+  frontmatter: FrontmatterPolicy = DEFAULT_FRONTMATTER,
 ): TraceabilityId[] {
   const lines = content.split("\n");
   const start = frontmatter === "skip" ? frontmatterLineCount(lines) : 0;
@@ -36,7 +36,7 @@ export function extractIdsFromText(
  */
 export async function extractIdsFromFile(
   filePath: string,
-  frontmatter: FrontmatterPolicy = "include",
+  frontmatter: FrontmatterPolicy = DEFAULT_FRONTMATTER,
 ): Promise<TraceabilityId[]> {
   return extractIdsFromText(await readText(filePath), filePath, frontmatter);
 }
@@ -49,7 +49,7 @@ export async function extractIdsFromFile(
  */
 export async function extractIds(
   filePaths: readonly string[],
-  frontmatter: FrontmatterPolicy = "include",
+  frontmatter: FrontmatterPolicy = DEFAULT_FRONTMATTER,
 ): Promise<TraceabilityId[]> {
   const allIds: TraceabilityId[] = [];
 

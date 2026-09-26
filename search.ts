@@ -17,6 +17,7 @@
  * @module
  */
 
+import { INPUT_OPTIONS_HELP } from "./src/cli/help.ts";
 import { parseSearchArgs } from "./src/cli/args.ts";
 import { type CommandSpec, main } from "./src/cli/runner.ts";
 import { runSearchMode } from "./src/modes/search.ts";
@@ -39,10 +40,7 @@ OPTIONS:
   --show-distance         Include distance scores in output
   --format <format>       Output format (default: simple)
                           • simple, json, markdown, csv
-  --ext <list>            File extensions to scan, comma-separated (default: md)
-                          • e.g. md,rs,ts,tsx,mjs,sh
-  --skip-frontmatter      Ignore IDs in frontmatter (leading --- block); body only
-  --help                  Show this help message
+${INPUT_OPTIONS_HELP}
 
 EXAMPLES:
   # Output to STDOUT

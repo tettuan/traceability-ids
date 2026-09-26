@@ -52,6 +52,13 @@ export const VERSION_MATCH_MODES = ["latest", "all"] as const;
  * `latest` matches only the newest version, `all` matches every version
  */
 export type VersionMatchMode = typeof VERSION_MATCH_MODES[number];
+/** Version resolution mode used when none is given */
+export const DEFAULT_VERSION_MATCH: VersionMatchMode = "latest";
+/** What each version resolution mode matches */
+export const VERSION_MATCH_DESCRIPTIONS: { readonly [M in VersionMatchMode]: string } = {
+  latest: "newest version only",
+  all: "every version, newest first",
+};
 
 /** How frontmatter is treated when extracting IDs */
 export const FRONTMATTER_POLICIES = ["include", "skip"] as const;
@@ -60,6 +67,8 @@ export const FRONTMATTER_POLICIES = ["include", "skip"] as const;
  * `include` extracts from the whole file, `skip` only from the body after the frontmatter
  */
 export type FrontmatterPolicy = typeof FRONTMATTER_POLICIES[number];
+/** Frontmatter policy used when none is given */
+export const DEFAULT_FRONTMATTER: FrontmatterPolicy = "include";
 
 /** Node coloring modes of graph mode */
 export const COLOR_MODES = ["cluster", "scope", "level"] as const;

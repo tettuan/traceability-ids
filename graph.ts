@@ -17,12 +17,17 @@
  * @module
  */
 
+import { allowMissingOptionHelp, INPUT_OPTIONS_HELP, versionsOptionHelp } from "./src/cli/help.ts";
 import { parseGraphArgs } from "./src/cli/args.ts";
+import type { GraphCommandOptions } from "./src/cli/args.ts";
 import { type CommandSpec, main } from "./src/cli/runner.ts";
+import { applyAllowMissing } from "./src/core/outcome.ts";
 import { runGraphMode } from "./src/modes/graph.ts";
-import type { GraphModeOptions } from "./src/modes/graph.ts";
 
 const USAGE = `Graph Mode - 3D visualization of traceability ID relationships
+
+Nodes are IDs. Edges are similarity (within --edge-threshold) and the declared
+relations derived_from / trace_to, drawn as arrows from the declaring ID.
 
 USAGE:
   deno run --allow-read --allow-write graph.ts [options] <input-path...>
@@ -43,10 +48,9 @@ OPTIONS:
   --k <number>            K-Means: number of clusters (default: auto)
   --epsilon <number>      DBSCAN: neighborhood radius (default: 0.3)
   --min-points <number>   DBSCAN: minimum neighbors (default: 2)
-  --ext <list>            File extensions to scan, comma-separated (default: md)
-                          • e.g. md,rs,ts,tsx,mjs,sh
-  --skip-frontmatter      Ignore IDs in frontmatter (leading --- block); body only
-  --help                  Show this help message
+${versionsOptionHelp("relation targets")}
+${allowMissingOptionHelp("relation targets are")}
+${INPUT_OPTIONS_HELP}
 
 EXAMPLES:
   # Basic usage
@@ -63,10 +67,10 @@ EXAMPLES:
 `;
 
 /** The graph command */
-export const command: CommandSpec<GraphModeOptions> = {
+export const command: CommandSpec<GraphCommandOptions> = {
   usage: USAGE,
   parse: parseGraphArgs,
-  run: (options) => runGraphMode(options),
+  run: async (options) => applyAllowMissing(await runGraphMode(options), options.allowMissing),
 };
 
 if (import.meta.main) {

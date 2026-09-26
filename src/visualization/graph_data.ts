@@ -7,6 +7,7 @@
  * @module
  */
 
+import { RELATION_KINDS, type RelationEdge, type RelationKind } from "../core/relations.ts";
 import type { Cluster, TraceabilityId } from "../core/types.ts";
 
 /** A node in the 3D graph representing a traceability ID */
@@ -29,11 +30,29 @@ export interface GraphNode {
   fz?: number;
 }
 
+/** Kind of a link that joins IDs within the edge threshold (undirected) */
+export const SIMILARITY_LINK = "similarity";
+
+/** Kinds of links: similarity, then the declared relations (directed from the declaring ID) */
+export const LINK_KINDS = [SIMILARITY_LINK, ...RELATION_KINDS] as const;
+/** Kind of a link */
+export type LinkKind = typeof LINK_KINDS[number];
+
+/**
+ * Whether a link is a declared relation
+ */
+export function isRelationLink(link: GraphLink): link is GraphLink & { kind: RelationKind } {
+  return link.kind !== SIMILARITY_LINK;
+}
+
 /** A link in the 3D graph representing a relationship between two IDs */
 export interface GraphLink {
   source: string;
   target: string;
+  /** Distance between the two IDs */
   distance: number;
+  /** Kind of the link */
+  kind: LinkKind;
 }
 
 /** Complete graph data structure for visualization */
@@ -50,6 +69,7 @@ export interface GraphData {
  * @param clusters - Clustering results
  * @param edgeThreshold - Only create edges for distances <= this value
  * @param mdsCoordinates - Optional MDS coordinates for fixed positioning
+ * @param relations - Declared relations; drawn regardless of the threshold, between known nodes only
  * @returns GraphData with nodes and links
  */
 export function buildGraphData(
@@ -58,6 +78,7 @@ export function buildGraphData(
   clusters: Cluster[],
   edgeThreshold: number,
   mdsCoordinates?: number[][],
+  relations: readonly RelationEdge[] = [],
 ): GraphData {
   // Build cluster membership map: fullId -> clusterId
   const clusterMap = new Map<string, number>();
@@ -105,9 +126,23 @@ export function buildGraphData(
           source: ids[i].fullId,
           target: ids[j].fullId,
           distance,
+          kind: SIMILARITY_LINK,
         });
       }
     }
+  }
+
+  const indexOf = new Map(ids.map((id, i) => [id.fullId, i]));
+  for (const relation of relations) {
+    const i = indexOf.get(relation.source);
+    const j = indexOf.get(relation.target);
+    if (i === undefined || j === undefined) continue;
+    links.push({
+      source: relation.source,
+      target: relation.target,
+      distance: distanceMatrix[i][j],
+      kind: relation.kind,
+    });
   }
 
   // Sort nodes array by tabId so Tab traversal follows adjacency order
