@@ -1,5 +1,6 @@
 import { createDistanceCalculator } from "../cli/distance-factory.ts";
 import { consoleIO, type ModeIO } from "../core/events.ts";
+import { COMPLETE, type ModeOutcome } from "../core/outcome.ts";
 import { deduplicateIds } from "../core/extractor.ts";
 import type { DistanceName, SearchFormat } from "../core/options.ts";
 import { formatSearchResult } from "../formatter/formatter.ts";
@@ -30,13 +31,13 @@ export interface SearchModeOptions extends InputSpec {
 export async function runSearchMode(
   options: SearchModeOptions,
   io: ModeIO = consoleIO,
-): Promise<void> {
+): Promise<ModeOutcome> {
   io.report({ type: "ModeStarted", mode: "search" });
   const calculator = createDistanceCalculator(options.distance);
   io.report({ type: "CalculatorSelected", name: options.distance });
 
   const collected = await collectIds(options, io);
-  if (!collected) return;
+  if (!collected) return COMPLETE;
 
   const result = searchSimilar(options.query, deduplicateIds(collected.rawIds), calculator, {
     top: options.top,
@@ -45,4 +46,5 @@ export async function runSearchMode(
 
   const content = formatSearchResult(result, options.format, options.showDistance);
   await emitResult(io, content, options.outputFile);
+  return COMPLETE;
 }

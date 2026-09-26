@@ -1,3 +1,4 @@
+import { requireParameter } from "../core/params.ts";
 import type { Cluster, TraceabilityId } from "../core/types.ts";
 import type { ClusteringAlgorithm } from "./algorithm.ts";
 
@@ -12,12 +13,16 @@ export class KMeansClustering implements ClusteringAlgorithm {
    * @param k クラスタ数（0の場合は自動推定）
    * @param maxIterations 最大イテレーション数（デフォルト: 100）
    * @param seed ランダムシード（再現性のため、デフォルト: 42）
+   * @throws TraceabilityError `InvalidParameter`
    */
   constructor(
     private k: number,
     private maxIterations: number = 100,
     private seed: number = 42,
-  ) {}
+  ) {
+    requireParameter("k", k, { kind: "integerAtLeast", min: 0 });
+    requireParameter("max iterations", maxIterations, { kind: "integerAtLeast", min: 1 });
+  }
 
   /**
    * クラスタリングを実行

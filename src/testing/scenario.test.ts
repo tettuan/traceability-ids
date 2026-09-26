@@ -42,6 +42,15 @@ Deno.test("assertOutcome - checks error kind and fields", () => {
   assertThrows(() => assertOutcome(error, { kind: "error", error: { kind: "ScanFailed" } }));
   assertThrows(() => assertOutcome(undefined, { kind: "error", error: { kind: "ScanFailed" } }));
   assertThrows(() => assertOutcome(error, { kind: "success" }));
+  assertOutcome(undefined, { kind: "success", result: { status: "complete" } }, {
+    status: "complete",
+  });
+  assertThrows(() =>
+    assertOutcome(undefined, { kind: "success", result: { status: "complete" } }, {
+      status: "partial",
+      missing: ["x"],
+    })
+  );
 });
 
 Deno.test("runScenario - fails when the declared sequence does not happen", async () => {

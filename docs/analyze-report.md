@@ -87,7 +87,7 @@ Level×Scope の網羅性を評価する。
 
 ## レポート構成
 
-1. **ヘッダー**: 生成日時, 対象ディレクトリ, 統計情報
+1. **ヘッダー**: 生成日時, 対象ディレクトリ（複数パスはカンマ区切り）, 統計情報
 2. **サマリー**: 6指標の一覧テーブル（観点, メトリクス, 値, 評価）
 3. **構成分析**: カバレッジマトリクス, チェーン, ファイル分布
 4. **詳細度分析**: 展開率, バージョン鮮度, レベルバランス
@@ -97,22 +97,30 @@ Level×Scope の網羅性を評価する。
 
 ## CLIオプション
 
-| オプション         | 説明                       | デフォルト              | 値                                            |
-| ------------------ | -------------------------- | ----------------------- | --------------------------------------------- |
-| `--output`         | 出力レポートファイルパス   | `tmp/analyze-report.md` | ファイルパス                                  |
-| `--distance`       | 距離計算手法               | `structural`            | levenshtein, jaro-winkler, cosine, structural |
-| `--algorithm`      | クラスタリングアルゴリズム | `hierarchical`          | hierarchical, kmeans, dbscan                  |
-| `--threshold`      | クラスタリング閾値         | `0.3`                   | 数値                                          |
-| `--edge-threshold` | 連結度分析の閾値           | `0.5`                   | 数値                                          |
-| `--k`              | K-Meansクラスタ数          | `0` (自動)              | 数値                                          |
-| `--epsilon`        | DBSCAN近傍半径             | `0.3`                   | 数値                                          |
-| `--min-points`     | DBSCAN最小ポイント数       | `2`                     | 数値                                          |
+| オプション         | 説明                             | デフォルト              | 値                                            |
+| ------------------ | -------------------------------- | ----------------------- | --------------------------------------------- |
+| `--output`         | 出力レポートファイルパス         | `tmp/analyze-report.md` | ファイルパス                                  |
+| `--distance`       | 距離計算手法                     | `structural`            | levenshtein, jaro-winkler, cosine, structural |
+| `--algorithm`      | クラスタリングアルゴリズム       | `hierarchical`          | hierarchical, kmeans, dbscan                  |
+| `--threshold`      | クラスタリング閾値               | `0.3`                   | 数値                                          |
+| `--edge-threshold` | 連結度分析の閾値                 | `0.5`                   | 数値                                          |
+| `--k`              | K-Meansクラスタ数                | `0` (自動)              | 数値                                          |
+| `--epsilon`        | DBSCAN近傍半径                   | `0.3`                   | 数値                                          |
+| `--min-points`     | DBSCAN最小ポイント数             | `2`                     | 数値                                          |
+| `--ext`            | 走査対象の拡張子（カンマ区切り） | `md`                    | 例: md,rs,ts                                  |
+
+入力は1つ以上のパス（`<input-path...>`）。ディレクトリは再帰的に走査し、明示した
+ファイルは拡張子に関係なく対象に含める。ファイルまたはIDが見つからない場合は
+レポートを出力せずに終了する。
 
 ## 使用例
 
 ```bash
 # 基本
 deno run --allow-read --allow-write analyze.ts ./data
+
+# 複数パス・ソースコードも対象
+deno run --allow-read --allow-write analyze.ts ./docs ./src --ext md,rs,ts
 
 # 出力先指定
 deno run --allow-read --allow-write analyze.ts ./data --output tmp/report.md

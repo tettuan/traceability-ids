@@ -1,6 +1,7 @@
 import { createClusteringAlgorithm } from "../cli/clustering-factory.ts";
 import { createDistanceCalculator } from "../cli/distance-factory.ts";
 import { consoleIO, type ModeIO } from "../core/events.ts";
+import { COMPLETE, type ModeOutcome } from "../core/outcome.ts";
 import type {
   AlgorithmName,
   ClusterFormat,
@@ -35,7 +36,7 @@ export interface ClusterModeOptions extends InputSpec {
 export async function runClusterMode(
   options: ClusterModeOptions,
   io: ModeIO = consoleIO,
-): Promise<void> {
+): Promise<ModeOutcome> {
   io.report({ type: "ModeStarted", mode: "cluster" });
   const calculator = createDistanceCalculator(options.distance);
   io.report({ type: "CalculatorSelected", name: options.distance });
@@ -43,7 +44,7 @@ export async function runClusterMode(
   io.report({ type: "AlgorithmSelected", name: options.algorithm });
 
   const collected = await collectIds(options, io);
-  if (!collected) return;
+  if (!collected) return COMPLETE;
   const ids = collected.rawIds;
 
   const matrix = createDistanceMatrix(ids.map((id) => id.fullId), calculator);
@@ -58,4 +59,5 @@ export async function runClusterMode(
     distanceCalculator: calculator.name,
   };
   await emitResult(io, formatResult(result, options.format), options.outputFile);
+  return COMPLETE;
 }

@@ -50,7 +50,7 @@ defineScenario({
       { type: "ContextsResolved", found: 2, notFound: 0 },
       { type: "OutputPrinted" },
     ],
-    outcome: { kind: "success" },
+    outcome: { kind: "success", result: { status: "complete" } },
     verify: (ctx) => {
       const out = ctx.io.printed.join("");
       assertStringIncludes(out, "req:auth:login-a1b2c3#20260810");
@@ -133,6 +133,36 @@ defineScenario({
     events: [{ type: "ContextsResolved" }],
     absent: ["OutputWritten"],
     outcome: { kind: "error", error: { kind: "FileWriteFailed" } },
+  },
+});
+
+defineScenario({
+  name: "extract: IDs not found still print the found ones, then report partial",
+  given: DOCS,
+  when: (ctx) =>
+    runExtractMode(
+      extractOptions(ctx, {
+        ids: { kind: "inline", text: "req:auth:login-a1b2c3 req:x:none-000#v1" },
+      }),
+      ctx.io,
+    ),
+  then: {
+    events: [{ type: "ContextsResolved", found: 2, notFound: 1 }, { type: "OutputPrinted" }],
+    outcome: { kind: "success", result: { status: "partial", missing: ["req:x:none-000#v1"] } },
+  },
+});
+
+defineScenario({
+  name: "extract: nothing to scan reports every requested ID as missing",
+  given: { "docs/empty.md": "# none\n" },
+  when: (ctx) => runExtractMode(extractOptions(ctx), ctx.io),
+  then: {
+    events: [{ type: "Stopped", reason: "NoIds" }],
+    absent: ["ContextsResolved", "OutputPrinted"],
+    outcome: {
+      kind: "success",
+      result: { status: "partial", missing: ["req:auth:login-a1b2c3"] },
+    },
   },
 });
 
@@ -336,5 +366,20 @@ defineScenario({
       { type: "OutputWritten" },
     ],
     outcome: { kind: "success" },
+  },
+});
+
+defineScenario({
+  name: "extract: an empty ids file fails before scanning",
+  given: { ...DOCS, "ids.txt": "\n  \n" },
+  when: (ctx) =>
+    runExtractMode(
+      extractOptions(ctx, { ids: { kind: "file", path: ctx.path("ids.txt") } }),
+      ctx.io,
+    ),
+  then: {
+    events: [{ type: "ModeStarted" }],
+    absent: ["TargetsLoaded", "ScanStarted"],
+    outcome: { kind: "error", error: { kind: "EmptyIdList" } },
   },
 });

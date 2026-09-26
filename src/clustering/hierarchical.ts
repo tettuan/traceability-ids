@@ -1,3 +1,4 @@
+import { requireParameter } from "../core/params.ts";
 import type { Cluster, TraceabilityId } from "../core/types.ts";
 import type { ClusteringAlgorithm } from "./algorithm.ts";
 
@@ -9,9 +10,12 @@ export class HierarchicalClustering implements ClusteringAlgorithm {
 
   /**
    * コンストラクタ
-   * @param threshold 結合の閾値（この距離以下なら結合）
+   * @param threshold 結合の閾値（この距離以下なら結合、有限の 0 以上）
+   * @throws TraceabilityError `InvalidParameter`
    */
-  constructor(private threshold: number) {}
+  constructor(private threshold: number) {
+    requireParameter("threshold", threshold, { kind: "nonNegative" });
+  }
 
   /**
    * クラスタリングを実行

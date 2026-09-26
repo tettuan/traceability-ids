@@ -108,11 +108,15 @@ export function buildLocationContext(
   after: number,
 ): LocationContext {
   // Apply constraints
-  before = Math.min(before, MAX_LINES);
-  after = Math.min(after, MAX_LINES);
+  before = clampLines(before);
+  after = clampLines(after);
 
-  // Convert line number to array index (1-indexed → 0-indexed)
+  // Convert line number to array index (1-indexed → 0-indexed).
+  // A line outside the file (e.g. the file changed after extraction) yields an empty target.
   const targetIndex = lineNumber - 1;
+  if (!Number.isInteger(targetIndex) || targetIndex < 0 || targetIndex >= lines.length) {
+    return { filePath, lineNumber, targetLine: "", beforeLines: [], afterLines: [] };
+  }
 
   // Calculate range (with boundary checks)
   const startIndex = Math.max(0, targetIndex - before);
@@ -135,6 +139,13 @@ export function buildLocationContext(
     beforeLines: removeConsecutiveEmptyLines(beforeLines),
     afterLines: removeConsecutiveEmptyLines(afterLines),
   };
+}
+
+/**
+ * Clamp a line count to 0..MAX_LINES (non-finite → 0)
+ */
+function clampLines(count: number): number {
+  return Number.isFinite(count) ? Math.min(Math.max(0, Math.floor(count)), MAX_LINES) : 0;
 }
 
 /**

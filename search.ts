@@ -52,6 +52,10 @@ EXAMPLES:
   deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/search \\
     ./docs --query "security" --output result.txt --show-distance
 
+  # Search specs and source code together
+  deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/search \\
+    --query "auth" --ext md,ts .specs src
+
   # Options can be in any order
   deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/search \\
     --top 5 --query "auth" ./data --distance cosine

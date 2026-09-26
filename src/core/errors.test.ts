@@ -11,6 +11,7 @@ import {
 
 const SAMPLES: ErrorDetail[] = [
   { kind: "MissingArgument", argument: "--ids" },
+  { kind: "EmptyIdList", source: "--ids" },
   { kind: "InvalidOptionValue", option: "--format", value: "x", expected: "one of a, b" },
   { kind: "InvalidParameter", parameter: "epsilon", value: 0, constraint: "must be positive" },
   { kind: "PathNotFound", path: "/p" },

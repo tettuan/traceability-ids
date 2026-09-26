@@ -8,6 +8,7 @@
  */
 
 import { consoleIO, type ModeIO } from "../core/events.ts";
+import { COMPLETE, type ModeOutcome } from "../core/outcome.ts";
 import type { ListFormat, SortKey } from "../core/options.ts";
 import { formatListResult } from "../formatter/list_formatter.ts";
 import { aggregateOccurrences, splitBatches } from "../list/aggregator.ts";
@@ -37,7 +38,7 @@ export interface ListModeOptions extends InputSpec {
 export async function runListMode(
   options: ListModeOptions,
   io: ModeIO = consoleIO,
-): Promise<void> {
+): Promise<ModeOutcome> {
   io.report({ type: "ModeStarted", mode: "list" });
   const collected = await collectIds(options, io, "continue");
   const index = aggregateOccurrences(collected?.rawIds ?? [], options.sort);
@@ -51,6 +52,7 @@ export async function runListMode(
   } else {
     await emitResult(io, formatListResult(index, options.format), options.outputFile);
   }
+  return COMPLETE;
 }
 
 /**

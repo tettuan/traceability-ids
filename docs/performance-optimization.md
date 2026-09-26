@@ -54,6 +54,11 @@ import { extractUniqueIdsAuto } from "./src/core/extractor-cli.ts";
 const uniqueIds = await extractUniqueIdsAuto(inputDir);
 ```
 
+**注意**: CLI版はベンチマーク（`benchmark/benchmark-cli.ts`）専用で、各モードは
+使用していない（モードは常に Native 版で、`--ext` と複数パスに対応）。CLI版は
+単一ディレクトリの `*.md` のみを対象とし、バージョン付きIDだけを抽出する。
+rg の実行失敗は `ExternalCommandFailed`（終了コード 5）となる。
+
 **パフォーマンス**:
 
 - 小規模（<50ファイル）: Native版（プロセス起動コストを回避）

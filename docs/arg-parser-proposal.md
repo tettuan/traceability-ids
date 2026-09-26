@@ -1,5 +1,8 @@
 # Argument Parser Refactoring Proposal
 
+> **実装状況（v0.0.11）**: 本提案は形を変えて全モードに導入済み。差分は
+> 「[実装結果](#実装結果v0011)」を参照。以下の提案本文は検討時の記録として残す。
+
 ## 背景
 
 現在、各CLIエントリーポイント（search.ts, extract.ts, src/cli.ts）で引数のパースと検証を個別に実装しています。これはテスト戦略の観点から以下の課題があります：
@@ -263,11 +266,29 @@ export function parseSearchArgs(args: string[]): ParseResult<SearchArgs> {
 
 ## 実装タスク（Phase 1）
 
-1. [ ] `src/cli/parsers/types.ts` を作成
-2. [ ] `src/cli/parsers/search-args.ts` を作成
-3. [ ] `src/cli/parsers/search-args.test.ts` を作成（15+ テストケース）
-4. [ ] `search.ts` をリファクタリング
-5. [ ] 既存の動作確認（example:search の実行）
-6. [ ] ドキュメント更新（test-strategy.md）
+1. [x] 型定義を作成（`src/cli/args.ts` の `ParsedArgs<T>` / `ArgsParser<T>`）
+2. [x] 検索モードの引数パーサーを作成（`parseSearchArgs`）
+3. [x] テストを作成（`src/cli/cli.test.ts`）
+4. [x] `search.ts` をリファクタリング
+5. [x] 既存の動作確認（example:search の実行）
+6. [x] ドキュメント更新（test-strategy.md）
 
-推定時間: 2-3時間
+## 実装結果（v0.0.11）
+
+段階的導入ではなく、全6モード（cluster / search / extract / graph / analyze /
+list）に一度に適用した。提案との違いは次のとおり。
+
+| 項目           | 提案                                            | 実装                                                                                                                                                                      |
+| -------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 配置           | `src/cli/parsers/*-args.ts`（モード別ファイル） | `src/cli/args.ts` 1ファイルに `parseXxxArgs` を集約                                                                                                                       |
+| 戻り値         | `ParseResult<T> { success, data?, errors? }`    | `ParsedArgs<T> = { kind: "help" } \| { kind: "run"; options: T }`（オプション型はモードと共有）                                                                           |
+| エラー         | `errors: string[]` を返す                       | 型付きの `TraceabilityError` を投げる（`MissingArgument` / `InvalidOptionValue`）                                                                                         |
+| 値の検証       | 個別実装（`parseInt` 等）                       | `src/core/options.ts` の const タプルと `parseChoice` / `parseInteger` / `parseNumber`（`NaN` を通さない）                                                                |
+| 共通バリデータ | `src/cli/parsers/validators.ts`（Phase 3）      | `src/core/options.ts` と `parseExtensions`（`src/core/scanner.ts`）                                                                                                       |
+| 実行と終了     | 各エントリーポイントで `Deno.exit(1)`           | `src/cli/runner.ts` の `runCommand` が `Error [<kind>]: <message>` を出力し、カテゴリ別の終了コード（partial=1, usage=2, input=3, output=4, external=5, 想定外=70）を返す |
+| 入力           | `inputDir: string`（単一）                      | `inputDir: string[]`（複数パス）と `--ext`                                                                                                                                |
+| ヘルプ         | `showUsage()`                                   | `--help` は必須引数の欠落より優先。末尾に `EXIT CODES` セクションを付加                                                                                                   |
+
+各エントリーポイントは USAGE と `CommandSpec { usage, parse, run }` を定義して
+`main()` に渡すだけになった。BreakdownLogger によるパーサー内ログは導入していない
+（パーサーが純粋関数のため、入出力の assert で足りる）。

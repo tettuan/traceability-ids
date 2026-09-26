@@ -34,6 +34,12 @@ import type { ListModeOptions } from "../modes/list.ts";
 import type { InputSpec } from "../modes/pipeline.ts";
 import type { SearchModeOptions } from "../modes/search.ts";
 
+/** Options of the extract command: mode options plus exit code policy */
+export interface ExtractCommandOptions extends ExtractModeOptions {
+  /** Exit 0 even when some requested IDs are not found */
+  allowMissing: boolean;
+}
+
 /** Result of parsing: show help, or run with options */
 export type ParsedArgs<T> =
   | { kind: "help" }
@@ -142,13 +148,13 @@ export function parseSearchArgs(argv: readonly string[]): ParsedArgs<SearchModeO
 }
 
 /** Parse arguments of extract mode */
-export function parseExtractArgs(argv: readonly string[]): ParsedArgs<ExtractModeOptions> {
+export function parseExtractArgs(argv: readonly string[]): ParsedArgs<ExtractCommandOptions> {
   const args = flags(argv, ["ids", "ids-file", "before", "after", "format", "output", "versions"], {
     before: "3",
     after: "10",
     format: "markdown",
     versions: "latest",
-  });
+  }, ["allow-missing"]);
   if (args.help) return { kind: "help" };
   const spec = inputSpec(args);
   const ids = args.ids !== undefined
@@ -169,6 +175,7 @@ export function parseExtractArgs(argv: readonly string[]): ParsedArgs<ExtractMod
       after: parseInteger("--after", args.after),
       format: parseChoice("--format", args.format, EXTRACT_FORMATS),
       versions: parseChoice("--versions", args.versions, VERSION_MATCH_MODES),
+      allowMissing: args["allow-missing"] === true,
     },
   };
 }

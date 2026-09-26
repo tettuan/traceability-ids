@@ -4,7 +4,8 @@
  * @module
  */
 
-import { assertNever } from "../core/errors.ts";
+import { assertNever, TraceabilityError } from "../core/errors.ts";
+import { isNonEmpty, type NonEmptyArray } from "../core/nonempty.ts";
 import { readText } from "../core/io.ts";
 
 /** Source of requested IDs */
@@ -40,9 +41,20 @@ export function parseIdLines(content: string): string[] {
  * const fromFile = await loadIds({ kind: "file", path: "./ids.txt" });
  * ```
  *
- * @throws TraceabilityError `PathNotFound` | `PathAccessDenied` | `FileReadFailed` (file source)
+ * @returns at least one ID
+ * @throws TraceabilityError `EmptyIdList`, or `PathNotFound` | `PathAccessDenied` |
+ *   `FileReadFailed` for a file source
  */
-export async function loadIds(source: IdsSource): Promise<string[]> {
+export async function loadIds(source: IdsSource): Promise<NonEmptyArray<string>> {
+  const ids = await readIds(source);
+  if (isNonEmpty(ids)) return ids;
+  throw new TraceabilityError({
+    kind: "EmptyIdList",
+    source: source.kind === "inline" ? "--ids" : source.path,
+  });
+}
+
+async function readIds(source: IdsSource): Promise<string[]> {
   switch (source.kind) {
     case "inline":
       return parseInlineIds(source.text);

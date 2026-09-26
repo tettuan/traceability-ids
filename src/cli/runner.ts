@@ -11,6 +11,7 @@ import {
   isTraceabilityError,
   UNEXPECTED_EXIT_CODE,
 } from "../core/errors.ts";
+import { type ModeOutcome, OUTCOME_EXIT_CODES } from "../core/outcome.ts";
 import type { ArgsParser } from "./args.ts";
 
 /** One CLI command */
@@ -20,7 +21,7 @@ export interface CommandSpec<T> {
   /** Argument parser */
   parse: ArgsParser<T>;
   /** Mode to run */
-  run: (options: T) => Promise<void>;
+  run: (options: T) => Promise<ModeOutcome>;
 }
 
 /** Where the driver writes text */
@@ -50,9 +51,10 @@ export function exitCodesHelp(): string {
   );
   return [
     "EXIT CODES:",
-    "  0  success",
-    `  ${UNEXPECTED_EXIT_CODE}  unexpected error`,
+    `  ${OUTCOME_EXIT_CODES.complete}  success`,
+    `  ${OUTCOME_EXIT_CODES.partial}  some requested IDs were not found (extract; see --allow-missing)`,
     ...rows,
+    `  ${UNEXPECTED_EXIT_CODE} unexpected error`,
   ].join("\n");
 }
 
@@ -60,10 +62,10 @@ export function exitCodesHelp(): string {
  * Run a command and return its exit code
  *
  * - help → usage on STDOUT, 0
- * - success → 0
+ * - run → exit code of its {@link ModeOutcome} (complete 0, partial 1)
  * - {@link TraceabilityError} → `Error [<kind>]: <message>` on STDERR, the kind's exit code
  *   (usage errors also point to `--help`)
- * - anything else → `Error: <message>` on STDERR, 1
+ * - anything else → `Error: <message>` on STDERR, 70
  */
 export async function runCommand<T>(
   spec: CommandSpec<T>,
@@ -76,8 +78,8 @@ export async function runCommand<T>(
       cli.out(`${spec.usage.trimEnd()}\n\n${exitCodesHelp()}\n`);
       return 0;
     }
-    await spec.run(parsed.options);
-    return 0;
+    const outcome = await spec.run(parsed.options);
+    return OUTCOME_EXIT_CODES[outcome.status];
   } catch (error) {
     if (isTraceabilityError(error)) {
       cli.err(`Error [${error.kind}]: ${error.message}`);

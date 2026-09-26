@@ -2,7 +2,7 @@
 /**
  * List mode for traceability IDs.
  *
- * Extracts all traceability IDs from markdown files and outputs a structured
+ * Extracts all traceability IDs from files (markdown by default) and outputs a structured
  * index with occurrence information (file paths and line numbers).
  *
  * @example
@@ -56,6 +56,9 @@ EXAMPLES:
 
   # Simple list of unique IDs
   deno run --allow-read list.ts ./data --format simple
+
+  # IDs written in specs and source code
+  deno run --allow-read list.ts --ext md,rs,ts .specs src --format simple
 
   # Batch output (100 IDs per file)
   deno run --allow-read --allow-write list.ts ./data --output tmp/ids.json --batch-size 100

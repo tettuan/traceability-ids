@@ -132,7 +132,7 @@ export interface SimilaritySearchResult {
  */
 export interface ContextExtractionRequest {
   /** IDs to extract context for */
-  ids: string[];
+  ids: readonly string[];
   /** Number of lines to include before the target line (max: 50) */
   before: number;
   /** Number of lines to include after the target line (max: 50) */

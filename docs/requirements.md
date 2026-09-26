@@ -3,29 +3,39 @@
 ## 概要
 
 *.md
-ファイル内に存在するトレーサビリティIDを抽出し、類似度に基づいてクラスタリングした一覧を作成する。
+ファイル（`--ext` で他の拡張子も指定可）内に存在するトレーサビリティIDを抽出し、類似度に基づいてクラスタリングした一覧を作成する。
 
 ## 機能要件
 
 ### 1. ファイルスキャン
 
-指定されたディレクトリの *.md ファイルを再帰的に対象とする。
+指定された1つ以上のパス（ディレクトリまたはファイル）を対象とする。
 
-- サブディレクトリも含めて全ての .md ファイルを走査
+- ディレクトリ: サブディレクトリも含めて対象拡張子のファイルを再帰的に走査
+- 対象拡張子は `--ext md,rs,ts,...`（カンマ区切り）で指定する。既定は `md`
+- ファイルを明示指定した場合は、拡張子に関係なく常に対象に含める
+- 同じファイルは重複して扱わない（指定順を保持）
+- 存在しないパスは `PathNotFound` エラーとする
 - ファイルパスを記録する
+- 全モード（cluster / search / extract / graph / analyze / list）で共通
 
 ### 2. トレーサビリティID抽出
 
 対象ファイルからトレーサビリティIDをパターンマッチで全件抽出する。
 
-- パターン書式: `{level}:{scope}:{semantic}-{hash}#{version}`
-- 抽出方法: 正規表現マッチング
+- パターン書式: `{level}:{scope}:{semantic}-{hash}[#{version}]`
+  - `#{version}` は省略可能。バージョンなしIDも抽出する（`version` は空文字列）
+  - バージョンなしIDは、hash の直後が `[A-Za-z0-9_#-]` でない場合のみ ID とみなす
+    （末尾に `#` だけが付いたもの、より長い語の一部は ID ではない）
+- 抽出方法: 正規表現マッチング（文法の定義は `src/core/id.ts` の1箇所のみ）
 - 各要素:
   - `{level}`: コロンの前の文字列
   - `{scope}`: 最初のコロンと2番目のコロンの間の文字列
   - `{semantic}`: 2番目のコロン後からハイフンまでの文字列
   - `{hash}`: ハイフン後からハッシュ記号までの文字列
-  - `{version}`: ハッシュ記号後の文字列
+  - `{version}`: ハッシュ記号後の文字列（省略時は空文字列）
+- バージョン比較: 数字列を数値として比較する（例: `20260810` > `20251111b` >
+  `20251111a`、`v10` > `v2`）
 
 ### 3. 類似度クラスタリング
 
@@ -92,6 +102,11 @@ req:apikey:compliance-5a8d4b#20251111a (distance: 0.398)
 
 #### CLI インターフェース案
 
+> 実装では `--mode` オプションではなくエントリポイント（`search.ts` / JSR
+> サブパス `/search`）でモードを切り替え、出力先は `--output <file>`
+> で指定する（省略時は STDOUT）。例:
+> `deno run --allow-read --allow-write search.ts ./data --query security --top 10`
+
 ```bash
 # 完全なIDから類似検索
 deno run --allow-read --allow-write src/cli.ts ./data ./output/similar.txt \
@@ -115,7 +130,7 @@ deno run --allow-read --allow-write src/cli.ts ./data ./output/similar.txt \
 
 #### 技術的検討
 
-- クラスタリングとは異なるモード（`--mode cluster` / `--mode search`）
+- クラスタリングとは異なるモード（エントリポイント `src/cli.ts` / `search.ts`）
 - 既存の距離計算機能を再利用
 - 1対多の距離計算（クエリ vs 全ID）
 - ソートアルゴリズム: 単純な距離順ソート
@@ -161,11 +176,17 @@ deno run --allow-read --allow-write src/cli.ts ./data ./output/similar.txt \
 
 1. **ID指定**
    - 複数のIDを指定可能（コマンドライン引数、またはファイルから読み込み）
-   - 完全なID文字列のみ（例：`req:apikey:security-4f7b2e#20251111a`）
-   - スペース区切りまたは改行区切りで複数指定
+   - バージョン付きID（例：`req:apikey:security-4f7b2e#20251111a`）: 完全一致
+   - バージョンなしID（例：`req:apikey:security-4f7b2e`）: `--versions`
+     で解決する
+     - `latest`（既定）: 最新バージョンのみ
+     - `all`: すべてのバージョンを新しい順
+     - バージョンなしで書かれた参照は、どちらの場合もバージョン付きの後に含める
+     - 解決結果には要求IDを示す（Markdown: `Resolved from: <ID>`、JSON: `query`）
+   - スペース区切り（`--ids`）または改行区切りのファイル（`--ids-file`）で複数指定
 
 2. **ファイル検索と位置特定**
-   - 指定されたディレクトリ内の *.md ファイルから該当IDを検索
+   - 指定されたパス内の対象ファイル（既定 *.md、`--ext` で変更可）から該当IDを検索
    - 各IDの出現箇所を特定（ファイルパス、行番号）
    - 同じIDが複数ファイルに出現する場合はすべて抽出
 
@@ -228,6 +249,10 @@ following security measures: 41:
 
 #### CLI インターフェース案
 
+> 実装では `extract.ts`（JSR サブパス `/extract`）を使い、出力先は `--output`
+> で指定する。例:
+> `deno run --allow-read --allow-write extract.ts ./docs ./src --ext md,ts --ids "req:apikey:security-4f7b2e" --versions all`
+
 ```bash
 # 単一IDのコンテキスト抽出（grep的な使い方）
 deno run --allow-read src/cli.ts ./data ./output/context.md \
@@ -282,7 +307,7 @@ deno run --allow-read src/cli.ts ./data ./output/context.md \
 
 1. **実装方針**
    - 既存の `scanFiles()` と `extractIds()` を再利用
-   - 新しいモード: `--mode extract`
+   - 新しいモード: エントリポイント `extract.ts`（`--mode extract` ではない）
    - IDリストを入力として受け取る
    - ファイルを再スキャンして該当行の前後を抽出
 
@@ -292,10 +317,12 @@ deno run --allow-read src/cli.ts ./data ./output/context.md \
      ids: string[]; // 抽出対象のID一覧
      before: number; // 前N行
      after: number; // 後M行
+     versions?: "latest" | "all"; // バージョンなしIDの解決方法
    }
 
    interface ExtractedContext {
-     id: string;
+     id: string; // 一致した完全なID
+     query?: string; // バージョンなしIDから解決した場合の要求ID
      locations: LocationContext[];
    }
 
@@ -348,6 +375,17 @@ deno run --allow-read src/cli.ts ./data ./output/context.md \
    - ファイルの前後の不要な空白を削除
    - コンテキスト表示の可読性を向上
 
+### 7. ID一覧（List Mode）
+
+すべてのIDを出現箇所（ファイルパス・行番号）付きで一覧化する。詳細は
+[list-mode.md](./list-mode.md) を参照。
+
+- fullId ごとに出現箇所をまとめる（バージョンなしIDも別エントリとして扱う）
+- 出力形式: JSON（既定）/ simple / CSV、並び順: fullId / scope / level / count
+- `--batch-size` で出力ファイルを分割（`--output` 必須）
+- ファイルやIDが見つからない場合も停止せず、空のインデックスを出力する
+  （他のモードは出力せずに終了する）
+
 ## 出力形式
 
 クラスタリングされた結果を出力する。
@@ -365,8 +403,9 @@ deno run --allow-read src/cli.ts ./data ./output/context.md \
 
 ### 必須引数
 
-1. **調査対象ディレクトリ** - トレーサビリティIDを検索する最上位ディレクトリ
-2. **出力先ファイルパス** - クラスタリング結果を書き込むファイル
+1. **調査対象パス（1つ以上）** - ディレクトリ（再帰走査）またはファイル
+
+出力先は `--output <file>` で指定する（省略時は STDOUT）。
 
 ### オプション引数
 
@@ -374,12 +413,37 @@ deno run --allow-read src/cli.ts ./data ./output/context.md \
 - 距離計算手法の選択
 - 出力フォーマットの選択（JSON/Markdown/CSV）
 - アルゴリズム固有のパラメータ
+- 走査対象の拡張子（`--ext`、既定: md）
+
+受け付ける値は `src/core/options.ts` で定義し、範囲外の値はエラーとする。
 
 ### 実行例
 
 ```bash
-deno run --allow-read --allow-write src/cli.ts <input-dir> <output-file> [options]
+deno run --allow-read --allow-write src/cli.ts [options] <input-path...>
 ```
+
+### 出力ストリーム
+
+- 結果は STDOUT（または `--output` のファイル）
+- 進捗は STDERR（パイプで結果だけを受け取れる）
+
+### エラーと終了コード
+
+エラーはすべて `TraceabilityError`（種類 `kind` 付き）とし、STDERR に
+`Error [<kind>]: <message>` を出力する。終了コードは `grep` / `diff` の慣例に従い、
+0 と 1 を結果、2 以上を失敗とする。失敗の終了コードはエラーのカテゴリで決まる。
+`--help` の末尾に `EXIT CODES` セクションを表示する。
+
+| 終了コード | カテゴリ | エラー種類                                                         |
+| ---------- | -------- | ------------------------------------------------------------------ |
+| 0          | 成功     | 指定したものがすべて見つかった                                     |
+| 1          | 一部不在 | extract で一部の ID が見つからない（`--allow-missing` で 0）       |
+| 2          | usage    | MissingArgument, EmptyIdList, InvalidOptionValue, InvalidParameter |
+| 3          | input    | PathNotFound, PathAccessDenied, ScanFailed, FileReadFailed         |
+| 4          | output   | FileWriteFailed                                                    |
+| 5          | external | ExternalCommandFailed                                              |
+| 70         | 想定外   | `TraceabilityError` 以外のエラー（sysexits EX_SOFTWARE）           |
 
 ## 技術的制約
 
@@ -427,7 +491,7 @@ Strategy
    - n-gram ベースで計算
 
 4. **構造的類似度**
-   - IDパターン `{level}:{scope}:{semantic}-{hash}#{version}`
+   - IDパターン `{level}:{scope}:{semantic}-{hash}[#{version}]`
      の各要素を個別に比較
    - 重み付け可能
 

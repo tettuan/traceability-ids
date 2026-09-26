@@ -1,6 +1,7 @@
 import { createClusteringAlgorithm } from "../cli/clustering-factory.ts";
 import { createDistanceCalculator } from "../cli/distance-factory.ts";
 import { consoleIO, type ModeIO } from "../core/events.ts";
+import { COMPLETE, type ModeOutcome } from "../core/outcome.ts";
 import { deduplicateIds } from "../core/extractor.ts";
 import type {
   AlgorithmName,
@@ -42,7 +43,7 @@ export interface GraphModeOptions extends InputSpec {
 export async function runGraphMode(
   options: GraphModeOptions,
   io: ModeIO = consoleIO,
-): Promise<void> {
+): Promise<ModeOutcome> {
   io.report({ type: "ModeStarted", mode: "graph" });
   const calculator = createDistanceCalculator(options.distance);
   io.report({ type: "CalculatorSelected", name: options.distance });
@@ -50,7 +51,7 @@ export async function runGraphMode(
   io.report({ type: "AlgorithmSelected", name: options.algorithm });
 
   const collected = await collectIds(options, io);
-  if (!collected) return;
+  if (!collected) return COMPLETE;
   const ids = deduplicateIds(collected.rawIds);
 
   const matrix = createDistanceMatrix(ids.map((id) => id.fullId), calculator);
@@ -65,4 +66,5 @@ export async function runGraphMode(
 
   const html = generateHTML(graphData, { colorBy: options.colorBy, layout: options.layout });
   await emitResult(io, html, options.outputFile);
+  return COMPLETE;
 }

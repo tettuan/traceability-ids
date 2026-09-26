@@ -1,12 +1,12 @@
 /**
- * CLI tool for extracting and clustering traceability IDs from markdown files.
+ * CLI tool for extracting and clustering traceability IDs from files (markdown by default).
  *
  * Supports multiple clustering algorithms (hierarchical, k-means, DBSCAN) and
  * distance calculation methods (Levenshtein, Jaro-Winkler, Cosine, Structural).
  *
  * @example
  * ```bash
- * # Extract and cluster IDs from markdown files
+ * # Extract and cluster IDs from markdown files under ./docs
  * deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids ./docs
  *
  * # Output with cluster boundaries
@@ -21,7 +21,7 @@ import { type CommandSpec, main } from "./cli/runner.ts";
 import { runClusterMode } from "./modes/cluster.ts";
 import type { ClusterModeOptions } from "./modes/cluster.ts";
 
-const USAGE = `Traceability IDs - Extract and cluster traceability IDs from markdown files
+const USAGE = `Traceability IDs - Extract and cluster traceability IDs from files (default: .md)
 
 USAGE:
   deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids [options] <input-path...>

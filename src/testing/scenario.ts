@@ -32,6 +32,7 @@
 import { assert, assertEquals, assertInstanceOf } from "@std/assert";
 import type { ModeEvent, ModeEventType, ModeIO } from "../core/events.ts";
 import { type ErrorDetail, type ErrorKind, TraceabilityError } from "../core/errors.ts";
+import type { ModeOutcome } from "../core/outcome.ts";
 
 /** An event any object with a string `type` */
 export type TypedEvent = { readonly type: string };
@@ -46,9 +47,16 @@ export type ExpectedError = {
   [K in ErrorKind]: { kind: K } & Partial<Omit<Extract<ErrorDetail, { kind: K }>, "kind">>;
 }[ErrorKind];
 
-/** Expected outcome of the action */
+/** Expected mode result: an existing `status` plus any subset of its fields */
+export type ExpectedResult = {
+  [S in ModeOutcome["status"]]:
+    & { status: S }
+    & Partial<Omit<Extract<ModeOutcome, { status: S }>, "status">>;
+}[ModeOutcome["status"]];
+
+/** Expected outcome of the action: success (optionally with its result), or an error */
 export type ExpectedOutcome =
-  | { kind: "success" }
+  | { kind: "success"; result?: ExpectedResult }
   | { kind: "error"; error: ExpectedError };
 
 /**
@@ -172,9 +180,19 @@ export function assertAbsent<E extends TypedEvent>(
 /**
  * Assert the outcome of an action (`thrown` is `undefined` on success)
  */
-export function assertOutcome(thrown: unknown, outcome: ExpectedOutcome): void {
+export function assertOutcome(
+  thrown: unknown,
+  outcome: ExpectedOutcome,
+  returned?: unknown,
+): void {
   if (outcome.kind === "success") {
     if (thrown !== undefined) throw thrown;
+    if (outcome.result) {
+      assert(
+        typeof returned === "object" && returned !== null && matches(returned, outcome.result),
+        `expected result ${JSON.stringify(outcome.result)}, got ${JSON.stringify(returned)}`,
+      );
+    }
     return;
   }
   assert(thrown !== undefined, `expected error ${outcome.error.kind}, but succeeded`);
@@ -203,13 +221,14 @@ export async function runScenario(scenario: Scenario): Promise<void> {
     }
 
     let thrown: unknown = undefined;
+    let returned: unknown = undefined;
     try {
-      await scenario.when(ctx);
+      returned = await scenario.when(ctx);
     } catch (error) {
       thrown = error;
     }
 
-    assertOutcome(thrown, scenario.then.outcome);
+    assertOutcome(thrown, scenario.then.outcome, returned);
     assertEvents(ctx.io.events, scenario.then.events, scenario.then.order);
     assertAbsent(ctx.io.events, scenario.then.absent ?? []);
     await scenario.then.verify?.(ctx);

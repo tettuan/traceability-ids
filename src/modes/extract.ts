@@ -1,4 +1,5 @@
 import { consoleIO, type ModeIO } from "../core/events.ts";
+import { lookupOutcome, type ModeOutcome } from "../core/outcome.ts";
 import type { ExtractFormat, VersionMatchMode } from "../core/options.ts";
 import type { ContextExtractionRequest } from "../core/types.ts";
 import { extractContext } from "../extract/context.ts";
@@ -26,18 +27,20 @@ export interface ExtractModeOptions extends InputSpec {
  * 抽出モードを実行
  *
  * Events: ModeStarted → TargetsLoaded → (collectIds) → ContextsResolved → Output*
+ *
+ * @returns `partial` with the IDs not found (all of them when nothing was scanned)
  */
 export async function runExtractMode(
   options: ExtractModeOptions,
   io: ModeIO = consoleIO,
-): Promise<void> {
+): Promise<ModeOutcome> {
   io.report({ type: "ModeStarted", mode: "extract" });
 
   const targetIds = await loadIds(options.ids);
   io.report({ type: "TargetsLoaded", count: targetIds.length });
 
   const collected = await collectIds(options, io);
-  if (!collected) return;
+  if (!collected) return lookupOutcome(targetIds);
 
   const request: ContextExtractionRequest = {
     ids: targetIds,
@@ -53,4 +56,5 @@ export async function runExtractMode(
   });
 
   await emitResult(io, formatContextResult(result, options.format), options.outputFile);
+  return lookupOutcome(result.notFound);
 }

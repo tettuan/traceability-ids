@@ -517,6 +517,11 @@ export { runGraphMode } from "./modes/graph.ts";
 // ID grammar, options, events, errors
 // ============================================================================
 
+export type { ModeOutcome } from "./core/outcome.ts";
+export type { NonEmptyArray } from "./core/nonempty.ts";
+export type { ParameterRule } from "./core/params.ts";
+export { COMPLETE, lookupOutcome, OUTCOME_EXIT_CODES } from "./core/outcome.ts";
+
 export type { IdComponents, UniqueKey } from "./core/id.ts";
 export {
   compareVersionsDesc,

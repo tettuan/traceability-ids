@@ -1,7 +1,7 @@
 # traceability-ids
 
-A CLI tool for extracting and clustering traceability IDs from markdown files
-based on similarity.
+A CLI tool for extracting and clustering traceability IDs from Markdown files
+(and, with `--ext`, source code or any text file) based on similarity.
 
 [![JSR](https://jsr.io/badges/@aidevtool/traceability-ids)](https://jsr.io/@aidevtool/traceability-ids)
 [![JSR Score](https://jsr.io/badges/@aidevtool/traceability-ids/score)](https://jsr.io/@aidevtool/traceability-ids)
@@ -32,8 +32,8 @@ Markdown documents, even when you don't know the exact ID.
 
 ## Overview
 
-This tool automatically extracts traceability IDs from Markdown files and
-clusters them based on string similarity. Implemented in pure TypeScript with
+This tool automatically extracts traceability IDs from Markdown files (or any
+file types selected with `--ext`) and clusters them based on string similarity. Implemented in pure TypeScript with
 support for multiple clustering algorithms and distance calculation methods.
 
 ### Purpose
@@ -95,22 +95,31 @@ list sorted by similarity**. This enables:
 ## Traceability ID Format
 
 ```
-{level}:{scope}:{semantic}-{hash}#{version}
+{level}:{scope}:{semantic}-{hash}[#{version}]
 ```
 
 ### Components
 
 - `{level}`: String before the first colon
 - `{scope}`: String between first and second colon
-- `{semantic}`: String from second colon to hyphen
-- `{hash}`: String from hyphen to hash symbol
-- `{version}`: String after hash symbol
+- `{semantic}`: String from second colon to the last hyphen
+- `{hash}`: String from the last hyphen to the hash symbol
+- `{version}`: String after the hash symbol (optional)
 
 ### Example
 
 ```
-req:projA:auth-timeout-3kd92z#20250903a
+req:projA:auth-timeout-3kd92z#20250903a   # versioned
+req:projA:auth-timeout-3kd92z             # versionless reference (unique key)
 ```
+
+A versionless ID is recognized only when the hash is not followed by a letter,
+digit, `_`, `-` or `#`. A bare trailing `#` (`...-3kd92z#`) is not an ID.
+Versionless recognition trades some false positives for finding references
+written without a version.
+
+Versions are ordered with digit runs compared as numbers
+(`20260810` > `20251111b` > `20251111a`, `v10` > `v2`).
 
 ## Installation
 
@@ -307,7 +316,7 @@ The report analyzes 4 dimensions:
 | `<input-path...>` | Directories or files to scan (one or more, dirs recursively) | -       | Paths (e.g. `.specs src`)  |
 | `--ext`           | File extensions to scan, comma-separated                     | `md`    | e.g. `md,rs,ts,tsx,mjs,sh` |
 
-A path that does not exist is an error (exit code 1) naming that path. Files given
+A path that does not exist is a `PathNotFound` error (exit code 3) naming that path. Files given
 explicitly are scanned regardless of `--ext`.
 
 ### Cluster Mode Options
@@ -391,17 +400,23 @@ version, newest first (`all`). Versions are compared with digit runs as numbers.
 
 ## Errors and Exit Codes
 
-Every failure is a `TraceabilityError` with a typed `detail.kind`. The CLI prints
-`Error [<kind>]: <message>` to STDERR and exits with the code of the kind's category.
+Exit codes follow the `grep` / `diff` convention: 0 and 1 are results, 2 and
+above are failures. Every failure is a `TraceabilityError` with a typed
+`detail.kind`; the CLI prints `Error [<kind>]: <message>` to STDERR and exits with
+the code of the kind's category.
 
-| Exit | Category   | Kinds                                                              |
-| ---- | ---------- | ------------------------------------------------------------------ |
-| 0    | -          | Success                                                            |
-| 1    | unexpected | Anything that is not a `TraceabilityError`                         |
-| 2    | usage      | `MissingArgument`, `InvalidOptionValue`, `InvalidParameter`        |
-| 3    | input      | `PathNotFound`, `PathAccessDenied`, `ScanFailed`, `FileReadFailed` |
-| 4    | output     | `FileWriteFailed`                                                  |
-| 5    | external   | `ExternalCommandFailed`                                            |
+| Exit | Meaning    | Details                                                                    |
+| ---- | ---------- | -------------------------------------------------------------------------- |
+| 0    | complete   | Success (everything requested was found)                                   |
+| 1    | partial    | `/extract`: some requested IDs were not found (`--allow-missing` → 0)      |
+| 2    | usage      | `MissingArgument`, `EmptyIdList`, `InvalidOptionValue`, `InvalidParameter` |
+| 3    | input      | `PathNotFound`, `PathAccessDenied`, `ScanFailed`, `FileReadFailed`         |
+| 4    | output     | `FileWriteFailed`                                                          |
+| 5    | external   | `ExternalCommandFailed`                                                    |
+| 70   | unexpected | Anything that is not a `TraceabilityError` (sysexits EX_SOFTWARE)          |
+
+With exit 1, the found IDs are still printed. Modes return a `ModeOutcome`
+(`{ status: "complete" }` or `{ status: "partial", missing }`).
 
 ```ts
 import { isTraceabilityError, runExtractMode } from "jsr:@aidevtool/traceability-ids/mod";
@@ -423,6 +438,31 @@ try {
 
 Modes report progress as typed `ModeEvent`s through an injectable `ModeIO`
 (default: progress to STDERR, results to STDOUT).
+
+## Testing
+
+```bash
+deno task check   # fmt + lint + tests
+```
+
+Mode behavior is tested as typed scenarios (`src/testing/scenario.ts`): files
+that exist (`given`), an action (`when`), and events expected **in order**, events
+that must not occur, and the outcome (`then`). `ExpectedEvent` only accepts real
+event types with a subset of their fields, so an impossible step does not compile.
+
+```ts
+defineScenario({
+  name: "extract: a missing path fails after the scan starts",
+  given: { "docs/a.md": "req:a:b-1f#v1" },
+  when: (ctx) =>
+    runExtractMode({ ...options, inputDir: [ctx.path("docs"), ctx.path("publish")] }, ctx.io),
+  then: {
+    events: [{ type: "TargetsLoaded" }, { type: "ScanStarted" }],
+    absent: ["FilesScanned"],
+    outcome: { kind: "error", error: { kind: "PathNotFound" } },
+  },
+});
+```
 
 ## Distance Calculation Guide
 
@@ -522,9 +562,18 @@ deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids --help
 │   └── list-mode.md         # List mode design
 ├── tmp/                     # Output directory (gitignored)
 └── src/                     # Source code
+    ├── cli/                 # CLI layer
+    │   ├── args.ts          # Pure argument parsers → typed mode options
+    │   ├── runner.ts        # Help, run, error → exit code
+    │   └── *-factory.ts     # Distance / clustering factories
     ├── core/                # Core functionality
-    │   ├── types.ts         # Type definitions
-    │   ├── scanner.ts       # File scanner
+    │   ├── types.ts         # Result type definitions
+    │   ├── id.ts            # ID grammar (single definition)
+    │   ├── options.ts       # Option vocabularies and parsers
+    │   ├── errors.ts        # TraceabilityError, error kinds, exit codes
+    │   ├── events.ts        # ModeEvent / ModeIO (progress reporting)
+    │   ├── io.ts            # File I/O with typed errors
+    │   ├── scanner.ts       # File scanner (paths, extensions)
     │   └── extractor.ts     # ID extractor
     ├── distance/            # Distance calculation
     │   ├── calculator.ts    # Interface & matrix creation
@@ -543,12 +592,14 @@ deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids --help
     │   └── aggregator.ts    # Occurrence aggregation
     ├── extract/             # Context extraction
     │   ├── context.ts       # Context extraction logic
-    │   └── loader.ts        # ID loading utilities
+    │   ├── resolver.ts      # Requested ID → matching versions
+    │   └── loader.ts        # IdsSource (inline / file) loading
     ├── visualization/       # 3D graph visualization
     │   ├── mds.ts           # Classical MDS algorithm
     │   ├── graph_data.ts    # Graph data transformation
     │   └── html_template.ts # HTML generation
     ├── modes/               # Mode orchestration
+    │   ├── pipeline.ts      # Shared scan → extract → emit steps
     │   ├── cluster.ts       # Cluster mode
     │   ├── search.ts        # Search mode
     │   ├── extract.ts       # Extract mode
@@ -558,8 +609,10 @@ deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids --help
     ├── formatter/           # Output formatters
     │   ├── formatter.ts     # JSON/Markdown/CSV formatters
     │   └── list_formatter.ts # List mode formatters
+    ├── testing/             # Typed scenario test support (not published)
+    │   └── scenario.ts      # given / when / then with event order
     ├── cli.ts               # CLI entry point (cluster mode)
-    └── mod.ts               # Library entry point
+    └── mod.ts               # Library entry point (`/mod` export)
 ```
 
 ## Tech Stack

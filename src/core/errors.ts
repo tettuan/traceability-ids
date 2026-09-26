@@ -13,6 +13,8 @@ export type ErrorDetail =
   // ── Usage: the invocation itself is wrong ──
   /** A required CLI argument or option is missing */
   | { kind: "MissingArgument"; argument: string }
+  /** The ID list to look up is empty (`source`: `--ids` or the ids file path) */
+  | { kind: "EmptyIdList"; source: string }
   /** A CLI option value is not one of the accepted values or not parsable */
   | { kind: "InvalidOptionValue"; option: string; value: string; expected: string }
   /** A numeric parameter of an algorithm is out of its valid range */
@@ -42,6 +44,7 @@ export type ErrorCategory = "usage" | "input" | "output" | "external";
 /** Category of every error kind */
 export const ERROR_CATEGORIES: { readonly [K in ErrorKind]: ErrorCategory } = {
   MissingArgument: "usage",
+  EmptyIdList: "usage",
   InvalidOptionValue: "usage",
   InvalidParameter: "usage",
   PathNotFound: "input",
@@ -52,7 +55,10 @@ export const ERROR_CATEGORIES: { readonly [K in ErrorKind]: ErrorCategory } = {
   ExternalCommandFailed: "external",
 };
 
-/** Process exit code of every error category (1 is reserved for unexpected errors) */
+/**
+ * Process exit code of every error category.
+ * 0 and 1 are results (see `OUTCOME_EXIT_CODES` in outcome.ts); failures start at 2.
+ */
 export const EXIT_CODES: { readonly [C in ErrorCategory]: number } = {
   usage: 2,
   input: 3,
@@ -60,8 +66,8 @@ export const EXIT_CODES: { readonly [C in ErrorCategory]: number } = {
   external: 5,
 };
 
-/** Exit code for errors that are not a {@link TraceabilityError} */
-export const UNEXPECTED_EXIT_CODE = 1;
+/** Exit code for errors that are not a {@link TraceabilityError} (sysexits EX_SOFTWARE) */
+export const UNEXPECTED_EXIT_CODE = 70;
 
 /**
  * Error raised by this tool
@@ -110,6 +116,8 @@ export function describeError(detail: ErrorDetail): string {
   switch (detail.kind) {
     case "MissingArgument":
       return `Missing required argument: ${detail.argument}`;
+    case "EmptyIdList":
+      return `No IDs given in ${detail.source}`;
     case "InvalidOptionValue":
       return `Invalid ${detail.option} value: "${detail.value}" (expected ${detail.expected})`;
     case "InvalidParameter":

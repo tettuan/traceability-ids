@@ -20,7 +20,8 @@
 import { parseExtractArgs } from "./src/cli/args.ts";
 import { type CommandSpec, main } from "./src/cli/runner.ts";
 import { runExtractMode } from "./src/modes/extract.ts";
-import type { ExtractModeOptions } from "./src/modes/extract.ts";
+import type { ExtractCommandOptions } from "./src/cli/args.ts";
+import { COMPLETE } from "./src/core/outcome.ts";
 
 const USAGE = `Extract Mode - Extract context around specific IDs (grep-like)
 
@@ -43,6 +44,7 @@ OPTIONS:
   --versions <mode>       How to resolve IDs given without a version (default: latest)
                           • latest: newest version only
                           • all:    every version, newest first
+  --allow-missing         Exit 0 even when some IDs are not found (default: exit 1)
   --ext <list>            File extensions to scan, comma-separated (default: md)
                           • e.g. md,rs,ts,tsx,mjs,sh
   --help                  Show this help message
@@ -76,10 +78,13 @@ EXAMPLES:
 `;
 
 /** The extract command */
-export const command: CommandSpec<ExtractModeOptions> = {
+export const command: CommandSpec<ExtractCommandOptions> = {
   usage: USAGE,
   parse: parseExtractArgs,
-  run: (options) => runExtractMode(options),
+  run: async (options) => {
+    const outcome = await runExtractMode(options);
+    return options.allowMissing ? COMPLETE : outcome;
+  },
 };
 
 if (import.meta.main) {

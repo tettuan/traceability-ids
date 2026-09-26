@@ -8,6 +8,7 @@ import {
   parseListArgs,
   parseSearchArgs,
 } from "./args.ts";
+import { COMPLETE, type ModeOutcome } from "../core/outcome.ts";
 import { type CommandSpec, runCommand } from "./runner.ts";
 
 function detailOf(fn: () => unknown): unknown {
@@ -34,11 +35,14 @@ Deno.test("args - extract builds typed options", () => {
         after: 10,
         format: "markdown",
         versions: "all",
+        allowMissing: false,
       },
     },
   );
   const fromFile = parseExtractArgs(["--ids-file", "ids.txt", "d"]);
   assertEquals(fromFile.kind === "run" && fromFile.options.ids, { kind: "file", path: "ids.txt" });
+  const allow = parseExtractArgs(["--ids", "x", "--allow-missing", "d"]);
+  assertEquals(allow.kind === "run" && allow.options.allowMissing, true);
 });
 
 Deno.test("args - missing arguments are MissingArgument", () => {
@@ -81,7 +85,7 @@ function recorder(): { out: string[]; err: string[]; out_: (t: string) => void }
   return { out, err, out_: (t) => out.push(t) };
 }
 
-function spec(run: () => Promise<void>): CommandSpec<unknown> {
+function spec(run: () => Promise<ModeOutcome>): CommandSpec<unknown> {
   return {
     usage: "USAGE",
     parse: (argv) => argv.includes("--help") ? { kind: "help" } : { kind: "run", options: {} },
@@ -89,7 +93,7 @@ function spec(run: () => Promise<void>): CommandSpec<unknown> {
   };
 }
 
-async function exitOf(run: () => Promise<void>, argv: string[] = []): Promise<{
+async function exitOf(run: () => Promise<ModeOutcome>, argv: string[] = []): Promise<{
   code: number;
   out: string[];
   err: string[];
@@ -103,10 +107,17 @@ async function exitOf(run: () => Promise<void>, argv: string[] = []): Promise<{
 }
 
 Deno.test("runCommand - help prints usage and exit codes, exits 0", async () => {
-  const { code, out } = await exitOf(() => Promise.resolve(), ["--help"]);
+  const { code, out } = await exitOf(() => Promise.resolve(COMPLETE), ["--help"]);
   assertEquals(code, 0);
   assertStringIncludes(out[0], "USAGE");
   assertStringIncludes(out[0], "3  input    PathNotFound");
+  assertStringIncludes(out[0], "70 unexpected error");
+});
+
+Deno.test("runCommand - outcomes map to 0 (complete) and 1 (partial)", async () => {
+  assertEquals((await exitOf(() => Promise.resolve(COMPLETE))).code, 0);
+  const partial = await exitOf(() => Promise.resolve({ status: "partial", missing: ["x"] }));
+  assertEquals([partial.code, partial.err], [1, []]);
 });
 
 Deno.test("runCommand - each error category has its own exit code", async () => {
@@ -122,7 +133,7 @@ Deno.test("runCommand - each error category has its own exit code", async () => 
     assertStringIncludes(err[0], `Error [${error.kind}]`);
   }
   const unexpected = await exitOf(() => Promise.reject(new Error("bug")));
-  assertEquals(unexpected.code, 1);
+  assertEquals(unexpected.code, 70);
   assertEquals(unexpected.err, ["Error: bug"]);
 });
 

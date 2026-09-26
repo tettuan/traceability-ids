@@ -1,6 +1,7 @@
 import { createClusteringAlgorithm } from "../cli/clustering-factory.ts";
 import { createDistanceCalculator } from "../cli/distance-factory.ts";
 import { consoleIO, type ModeIO } from "../core/events.ts";
+import { COMPLETE, type ModeOutcome } from "../core/outcome.ts";
 import { deduplicateIds } from "../core/extractor.ts";
 import type { AlgorithmName, ClusteringOptions, DistanceName } from "../core/options.ts";
 import type { Cluster, TraceabilityId } from "../core/types.ts";
@@ -829,7 +830,7 @@ function generateReport(
 export async function runAnalyzeMode(
   options: AnalyzeModeOptions,
   io: ModeIO = consoleIO,
-): Promise<void> {
+): Promise<ModeOutcome> {
   io.report({ type: "ModeStarted", mode: "analyze" });
   const calculator = createDistanceCalculator(options.distance);
   io.report({ type: "CalculatorSelected", name: options.distance });
@@ -837,7 +838,7 @@ export async function runAnalyzeMode(
   io.report({ type: "AlgorithmSelected", name: options.algorithm });
 
   const collected = await collectIds(options, io);
-  if (!collected) return;
+  if (!collected) return COMPLETE;
   const { files, rawIds } = collected;
   const uniqueIds = deduplicateIds(rawIds);
 
@@ -868,4 +869,5 @@ export async function runAnalyzeMode(
     gaps,
   );
   await emitResult(io, report, options.outputFile);
+  return COMPLETE;
 }
