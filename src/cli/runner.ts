@@ -11,6 +11,7 @@ import {
   isTraceabilityError,
   UNEXPECTED_EXIT_CODE,
 } from "../core/errors.ts";
+import { consoleIO, type ModeIO } from "../core/events.ts";
 import { type ModeOutcome, OUTCOME_EXIT_CODES } from "../core/outcome.ts";
 import type { ArgsParser } from "./args.ts";
 
@@ -20,8 +21,8 @@ export interface CommandSpec<T> {
   usage: string;
   /** Argument parser */
   parse: ArgsParser<T>;
-  /** Mode to run */
-  run: (options: T) => Promise<ModeOutcome>;
+  /** Mode to run, reporting progress and printing results through `io` */
+  run: (options: T, io: ModeIO) => Promise<ModeOutcome>;
 }
 
 /** Where the driver writes text */
@@ -52,7 +53,7 @@ export function exitCodesHelp(): string {
   return [
     "EXIT CODES:",
     `  ${OUTCOME_EXIT_CODES.complete}  success`,
-    `  ${OUTCOME_EXIT_CODES.partial}  some requested IDs or relation targets were not found (extract, graph; see --allow-missing)`,
+    `  ${OUTCOME_EXIT_CODES.partial}  some requested IDs (extract, list, relations) or relation targets (graph) were not found; see --allow-missing`,
     ...rows,
     `  ${UNEXPECTED_EXIT_CODE} unexpected error`,
   ].join("\n");
@@ -71,6 +72,7 @@ export async function runCommand<T>(
   spec: CommandSpec<T>,
   argv: readonly string[],
   cli: CliConsole = defaultConsole,
+  io: ModeIO = consoleIO,
 ): Promise<number> {
   try {
     const parsed = spec.parse(argv);
@@ -78,7 +80,7 @@ export async function runCommand<T>(
       cli.out(`${spec.usage.trimEnd()}\n\n${exitCodesHelp()}\n`);
       return 0;
     }
-    const outcome = await spec.run(parsed.options);
+    const outcome = await spec.run(parsed.options, io);
     return OUTCOME_EXIT_CODES[outcome.status];
   } catch (error) {
     if (isTraceabilityError(error)) {

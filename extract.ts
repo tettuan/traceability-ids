@@ -78,7 +78,8 @@ EXAMPLES:
 export const command: CommandSpec<ExtractCommandOptions> = {
   usage: USAGE,
   parse: parseExtractArgs,
-  run: async (options) => applyAllowMissing(await runExtractMode(options), options.allowMissing),
+  run: async (options, io) =>
+    applyAllowMissing(await runExtractMode(options, io), options.allowMissing),
 };
 
 if (import.meta.main) {

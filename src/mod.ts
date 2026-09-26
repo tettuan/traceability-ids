@@ -521,6 +521,8 @@ export { runClusterMode } from "./modes/cluster.ts";
 export { runSearchMode } from "./modes/search.ts";
 export { runExtractMode } from "./modes/extract.ts";
 export { runGraphMode } from "./modes/graph.ts";
+export type { RelationsModeOptions } from "./modes/relations.ts";
+export { runRelationsMode } from "./modes/relations.ts";
 
 // ============================================================================
 // ID grammar, options, events, errors
@@ -532,13 +534,18 @@ export { frontmatterLineCount } from "./core/frontmatter.ts";
 export type { ParameterRule } from "./core/params.ts";
 export { applyAllowMissing, COMPLETE, lookupOutcome, OUTCOME_EXIT_CODES } from "./core/outcome.ts";
 
-export type { IdComponents, UniqueKey } from "./core/id.ts";
+export type { HashRule, IdComponents, UniqueKey } from "./core/id.ts";
 export {
   compareVersionsDesc,
+  compileHashRule,
+  DEFAULT_HASH_PATTERN,
+  DEFAULT_HASH_RULE,
   findIds,
+  hasHash,
   hasVersion,
   parseId,
   uniqueKeyOf,
+  versionOf,
   withVersion,
 } from "./core/id.ts";
 
@@ -550,8 +557,11 @@ export type {
   DistanceName,
   ExtractFormat,
   FrontmatterPolicy,
+  HashPolicy,
   Layout,
   ListFormat,
+  RelationDirection,
+  RelationsFormat,
   SearchFormat,
   SortKey,
   VersionMatchMode,
@@ -561,12 +571,18 @@ export {
   CLUSTER_FORMATS,
   COLOR_MODES,
   DEFAULT_FRONTMATTER,
+  DEFAULT_HASH_POLICY,
+  DEFAULT_RELATION_DIRECTION,
   DEFAULT_VERSION_MATCH,
   DISTANCE_NAMES,
   EXTRACT_FORMATS,
   FRONTMATTER_POLICIES,
+  HASH_POLICIES,
   LAYOUTS,
   LIST_FORMATS,
+  parseHashPattern,
+  RELATION_DIRECTIONS,
+  RELATIONS_FORMATS,
   SEARCH_FORMATS,
   SORT_KEYS,
   VERSION_MATCH_DESCRIPTIONS,
@@ -578,27 +594,50 @@ export {
 // ============================================================================
 
 export type {
+  BrokenReason,
+  BrokenRelation,
   ExtractedRelations,
   RelationDeclaration,
   RelationEdge,
   RelationIssue,
   RelationKind,
+  RelationResolution,
+  ResolutionStatus,
+  ResolvedDeclaration,
   ResolvedRelations,
   SourcePosition,
 } from "./core/relations.ts";
 export {
+  describeBrokenReason,
   describeBrokenRelation,
+  describeDeclaration,
   describeRelationIssue,
   isRelationKind,
   RELATION_KINDS,
   RELATION_LABELS,
 } from "./core/relations.ts";
 export { extractRelations, extractRelationsFromText } from "./relations/extract.ts";
-export { resolveRelations } from "./relations/resolve.ts";
+export {
+  brokenReason,
+  edgesOf,
+  itemsOf,
+  resolveDeclaration,
+  resolveDeclarations,
+  resolveRelations,
+} from "./relations/resolve.ts";
+export type {
+  RelationFilter,
+  RelationRow,
+  RelationSelection,
+  RelationSelectionResult,
+  RowDirection,
+} from "./relations/select.ts";
+export { selectRelations } from "./relations/select.ts";
+export { formatRelations } from "./formatter/relations_formatter.ts";
 
 export type { IdsSource } from "./extract/loader.ts";
-export type { IdMatchGroup } from "./extract/resolver.ts";
-export { resolveTargetId } from "./extract/resolver.ts";
+export type { IdMatchGroup, IdSelection } from "./extract/resolver.ts";
+export { resolveTargetId, selectIds } from "./extract/resolver.ts";
 
 export type {
   AnalysisAspect,

@@ -11,7 +11,7 @@ import type {
 import type { ClusteringResult } from "../core/types.ts";
 import { createDistanceMatrix } from "../distance/calculator.ts";
 import { formatResult } from "../formatter/formatter.ts";
-import { collectIds, emitResult, type InputSpec } from "./pipeline.ts";
+import { collectIds, emitResult, hashRuleOf, type InputSpec } from "./pipeline.ts";
 
 /** Options of cluster mode */
 export interface ClusterModeOptions extends InputSpec {
@@ -38,7 +38,7 @@ export async function runClusterMode(
   io: ModeIO = consoleIO,
 ): Promise<ModeOutcome> {
   io.report({ type: "ModeStarted", mode: "cluster" });
-  const calculator = createDistanceCalculator(options.distance);
+  const calculator = createDistanceCalculator(options.distance, hashRuleOf(options));
   io.report({ type: "CalculatorSelected", name: options.distance });
   const algorithm = createClusteringAlgorithm(options.algorithm, options.clusteringOptions);
   io.report({ type: "AlgorithmSelected", name: options.algorithm });

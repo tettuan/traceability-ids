@@ -5,7 +5,7 @@ import { deduplicateIds } from "../core/extractor.ts";
 import type { DistanceName, SearchFormat } from "../core/options.ts";
 import { formatSearchResult } from "../formatter/formatter.ts";
 import { searchSimilar } from "../search/similarity.ts";
-import { collectIds, emitResult, type InputSpec } from "./pipeline.ts";
+import { collectIds, emitResult, hashRuleOf, type InputSpec } from "./pipeline.ts";
 
 /** Options of search mode */
 export interface SearchModeOptions extends InputSpec {
@@ -33,7 +33,7 @@ export async function runSearchMode(
   io: ModeIO = consoleIO,
 ): Promise<ModeOutcome> {
   io.report({ type: "ModeStarted", mode: "search" });
-  const calculator = createDistanceCalculator(options.distance);
+  const calculator = createDistanceCalculator(options.distance, hashRuleOf(options));
   io.report({ type: "CalculatorSelected", name: options.distance });
 
   const collected = await collectIds(options, io);
@@ -42,7 +42,7 @@ export async function runSearchMode(
   const result = searchSimilar(options.query, deduplicateIds(collected.rawIds), calculator, {
     top: options.top,
   });
-  io.report({ type: "SearchCompleted", results: result.items.length });
+  io.report({ type: "SearchCompleted", query: options.query, results: result.items.length });
 
   const content = formatSearchResult(result, options.format, options.showDistance);
   await emitResult(io, content, options.outputFile);

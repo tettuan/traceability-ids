@@ -15,18 +15,23 @@ import {
   type ClusteringOptions,
   COLOR_MODES,
   DEFAULT_FRONTMATTER,
+  DEFAULT_HASH_POLICY,
   DEFAULT_VERSION_MATCH,
   DISTANCE_NAMES,
   EXTRACT_FORMATS,
   LAYOUTS,
   LIST_FORMATS,
   parseChoice,
+  parseHashPattern,
   parseInteger,
   parseNumber,
+  RELATION_DIRECTIONS,
+  RELATIONS_FORMATS,
   SEARCH_FORMATS,
   SORT_KEYS,
   VERSION_MATCH_MODES,
 } from "../core/options.ts";
+import { DEFAULT_HASH_RULE } from "../core/id.ts";
 import { parseExtensions } from "../core/scanner.ts";
 import type { AnalyzeModeOptions } from "../modes/analyze.ts";
 import type { ClusterModeOptions } from "../modes/cluster.ts";
@@ -34,7 +39,10 @@ import type { ExtractModeOptions } from "../modes/extract.ts";
 import type { GraphModeOptions } from "../modes/graph.ts";
 import type { ListModeOptions } from "../modes/list.ts";
 import type { InputSpec } from "../modes/pipeline.ts";
+import type { IdsSource } from "../extract/loader.ts";
 import type { SearchModeOptions } from "../modes/search.ts";
+import type { RelationsModeOptions } from "../modes/relations.ts";
+import { RELATION_KINDS, type RelationKind } from "../core/relations.ts";
 
 /** Options of the extract command: mode options plus exit code policy */
 export interface ExtractCommandOptions extends ExtractModeOptions {
@@ -45,6 +53,12 @@ export interface ExtractCommandOptions extends ExtractModeOptions {
 /** Options of the graph command: mode options plus exit code policy */
 export interface GraphCommandOptions extends GraphModeOptions {
   /** Exit 0 even when some relation targets are not found */
+  allowMissing: boolean;
+}
+
+/** Options of the list command: mode options plus exit code policy */
+export interface ListCommandOptions extends ListModeOptions {
+  /** Exit 0 even when some requested IDs are not found */
   allowMissing: boolean;
 }
 
@@ -66,18 +80,35 @@ const CLUSTERING_DEFAULTS = {
   "min-points": "2",
 } as const;
 
+/** Value flags every command accepts */
+const INPUT_STRING_FLAGS = ["ext", "hash-pattern"] as const;
+/** Switches every command accepts */
+const INPUT_BOOLEAN_FLAGS = ["help", "skip-frontmatter", "require-hash"] as const;
+
 const CLUSTERING_FLAGS = ["algorithm", "threshold", "k", "epsilon", "min-points"] as const;
 
+/**
+ * Parse flags; the names listed here (plus the input options) are the only ones accepted
+ *
+ * @throws TraceabilityError `UnknownOption`
+ */
 function flags(
   argv: readonly string[],
   string: readonly string[],
   defaults: Record<string, string>,
   boolean: readonly string[] = [],
+  collect: readonly string[] = [],
 ): Flags {
   return parseArgs([...argv], {
-    string: ["ext", ...string],
-    boolean: ["help", "skip-frontmatter", ...boolean],
+    string: [...INPUT_STRING_FLAGS, ...string, ...collect],
+    boolean: [...INPUT_BOOLEAN_FLAGS, ...boolean],
+    collect: [...collect],
+    alias: { h: "help" },
     default: defaults,
+    unknown: (arg, key) => {
+      if (key === undefined) return true;
+      throw new TraceabilityError({ kind: "UnknownOption", option: arg.split("=")[0] });
+    },
   }) as Flags;
 }
 
@@ -86,7 +117,7 @@ function optional(value: unknown): string | undefined {
 }
 
 /**
- * Input paths, extensions and frontmatter policy
+ * Input paths, extensions, frontmatter policy and hash form
  *
  * @throws TraceabilityError `MissingArgument` | `InvalidOptionValue`
  */
@@ -98,7 +129,20 @@ function inputSpec(args: Flags): Required<InputSpec> {
     inputDir: args._.map(String),
     extensions: parseExtensions(optional(args.ext)),
     frontmatter: args["skip-frontmatter"] === true ? "skip" : DEFAULT_FRONTMATTER,
+    hashRule: args["hash-pattern"] === undefined
+      ? DEFAULT_HASH_RULE
+      : parseHashPattern("--hash-pattern", args["hash-pattern"]),
+    hashes: args["require-hash"] === true ? "required" : DEFAULT_HASH_POLICY,
   };
+}
+
+/**
+ * Where requested IDs come from: `--ids` wins over `--ids-file`; neither → undefined
+ */
+function idsSource(args: Flags): IdsSource | undefined {
+  if (args.ids !== undefined) return { kind: "inline", text: String(args.ids) };
+  if (args["ids-file"] !== undefined) return { kind: "file", path: String(args["ids-file"]) };
+  return undefined;
 }
 
 function clusteringOptions(args: Flags): ClusteringOptions {
@@ -166,11 +210,7 @@ export function parseExtractArgs(argv: readonly string[]): ParsedArgs<ExtractCom
   }, ["allow-missing"]);
   if (args.help) return { kind: "help" };
   const spec = inputSpec(args);
-  const ids = args.ids !== undefined
-    ? { kind: "inline" as const, text: String(args.ids) }
-    : args["ids-file"] !== undefined
-    ? { kind: "file" as const, path: String(args["ids-file"]) }
-    : undefined;
+  const ids = idsSource(args);
   if (!ids) {
     throw new TraceabilityError({ kind: "MissingArgument", argument: "--ids or --ids-file" });
   }
@@ -248,13 +288,79 @@ export function parseAnalyzeArgs(argv: readonly string[]): ParsedArgs<AnalyzeMod
   };
 }
 
+/** Options of the relations command: mode options plus exit code policy */
+export interface RelationsCommandOptions extends RelationsModeOptions {
+  /** Exit 0 even when some requested IDs are not found */
+  allowMissing: boolean;
+}
+
+/**
+ * Relation fields from repeated and comma-separated `--kind` values (none → every field)
+ *
+ * @throws TraceabilityError `InvalidOptionValue`
+ */
+function relationKinds(values: unknown): RelationKind[] {
+  const given = (Array.isArray(values) ? values : []).flatMap((v) => String(v).split(","))
+    .map((v) => v.trim()).filter((v) => v !== "");
+  if (given.length === 0) return [...RELATION_KINDS];
+  return [...new Set(given.map((v) => parseChoice("--kind", v, RELATION_KINDS)))];
+}
+
+/** Parse arguments of relations mode */
+export function parseRelationsArgs(argv: readonly string[]): ParsedArgs<RelationsCommandOptions> {
+  const args = flags(
+    argv,
+    ["ids", "ids-file", "versions", "direction", "format", "output"],
+    {
+      versions: DEFAULT_VERSION_MATCH,
+      format: "simple",
+    },
+    ["broken", "allow-missing"],
+    ["kind"],
+  );
+  if (args.help) return { kind: "help" };
+  const spec = inputSpec(args);
+  const ids = idsSource(args);
+  if (args.direction !== undefined && !ids) {
+    throw new TraceabilityError({
+      kind: "MissingArgument",
+      argument: "--ids or --ids-file (required by --direction)",
+    });
+  }
+  return {
+    kind: "run",
+    options: {
+      ...spec,
+      outputFile: optional(args.output),
+      ids,
+      direction: args.direction === undefined
+        ? undefined
+        : parseChoice("--direction", args.direction, RELATION_DIRECTIONS),
+      kinds: relationKinds(args.kind),
+      status: args.broken === true ? "broken" : "resolved",
+      versions: parseChoice("--versions", args.versions, VERSION_MATCH_MODES),
+      format: parseChoice("--format", args.format, RELATIONS_FORMATS),
+      allowMissing: args["allow-missing"] === true,
+    },
+  };
+}
+
 /** Parse arguments of list mode */
-export function parseListArgs(argv: readonly string[]): ParsedArgs<ListModeOptions> {
-  const args = flags(argv, ["output", "format", "sort", "batch-size"], {
+export function parseListArgs(argv: readonly string[]): ParsedArgs<ListCommandOptions> {
+  const args = flags(argv, [
+    "output",
+    "format",
+    "sort",
+    "batch-size",
+    "ids",
+    "ids-file",
+    "versions",
+  ], {
     format: "json",
     sort: "fullId",
     "batch-size": "0",
-  });
+    versions: DEFAULT_VERSION_MATCH,
+  }, ["allow-missing"]);
   if (args.help) return { kind: "help" };
   return {
     kind: "run",
@@ -264,6 +370,9 @@ export function parseListArgs(argv: readonly string[]): ParsedArgs<ListModeOptio
       format: parseChoice("--format", args.format, LIST_FORMATS),
       sort: parseChoice("--sort", args.sort, SORT_KEYS),
       batchSize: parseInteger("--batch-size", args["batch-size"]),
+      ids: idsSource(args),
+      versions: parseChoice("--versions", args.versions, VERSION_MATCH_MODES),
+      allowMissing: args["allow-missing"] === true,
     },
   };
 }

@@ -11,14 +11,21 @@
 import { assertNever } from "./errors.ts";
 import type { AlgorithmName, DistanceName, FrontmatterPolicy } from "./options.ts";
 import {
+  type BrokenRelation,
   describeBrokenRelation,
   describeRelationIssue,
-  type RelationDeclaration,
   type RelationIssue,
 } from "./relations.ts";
 
 /** Name of a mode */
-export type ModeName = "cluster" | "search" | "extract" | "graph" | "analyze" | "list";
+export type ModeName =
+  | "cluster"
+  | "search"
+  | "extract"
+  | "graph"
+  | "analyze"
+  | "list"
+  | "relations";
 
 /** Reason a mode stopped without producing output */
 export type EmptyReason = "NoFiles" | "NoIds";
@@ -39,16 +46,19 @@ export type ModeEvent =
     frontmatter: FrontmatterPolicy;
   }
   | { type: "FilesScanned"; count: number }
+  | { type: "HashlessExcluded"; count: number }
   | { type: "IdsExtracted"; total: number; unique: number }
   | { type: "Stopped"; reason: EmptyReason }
   | { type: "DistanceMatrixBuilt"; size: number }
   | { type: "ClustersFormed"; count: number }
-  | { type: "SearchCompleted"; results: number }
+  | { type: "SearchCompleted"; query: string; results: number }
   | { type: "ContextsResolved"; found: number; notFound: number }
+  | { type: "IdsSelected"; selected: number; notFound: number }
   | { type: "AnalysisCompleted"; aspect: AnalysisAspect }
   | { type: "RelationIssueFound"; issue: RelationIssue }
   | { type: "RelationsResolved"; declared: number; edges: number; broken: number }
-  | { type: "BrokenRelationFound"; relation: RelationDeclaration }
+  | { type: "BrokenRelationFound"; relation: BrokenRelation }
+  | { type: "RelationsSelected"; rows: number; notFound: number }
   | { type: "GraphBuilt"; nodes: number; links: number; relations: number }
   | { type: "OutputWritten"; path: string }
   | { type: "OutputPrinted"; length: number };
@@ -69,10 +79,12 @@ export interface ModeIO {
   print(content: string): void;
 }
 
-/** Console IO: progress to STDERR, results to STDOUT */
+/** Console IO: progress to STDERR, results to STDOUT (ending with exactly one newline) */
 export const consoleIO: ModeIO = {
   report: (event) => console.error(describeEvent(event)),
-  print: (content) => console.log(content),
+  print: (content) => {
+    if (content !== "") console.log(content.endsWith("\n") ? content.slice(0, -1) : content);
+  },
 };
 
 /**
@@ -93,6 +105,8 @@ export function describeEvent(event: ModeEvent): string {
         `${event.frontmatter === "skip" ? ", skipping frontmatter" : ""})`;
     case "FilesScanned":
       return `Found ${event.count} files`;
+    case "HashlessExcluded":
+      return `Excluded ${event.count} occurrences of IDs without a hash`;
     case "IdsExtracted":
       return `Extracted ${event.total} IDs (${event.unique} unique)`;
     case "Stopped":
@@ -102,9 +116,11 @@ export function describeEvent(event: ModeEvent): string {
     case "ClustersFormed":
       return `Created ${event.count} clusters`;
     case "SearchCompleted":
-      return `Found ${event.results} results`;
+      return `Found ${event.results} results for ${JSON.stringify(event.query)}`;
     case "ContextsResolved":
       return `Found ${event.found} IDs, not found ${event.notFound} IDs`;
+    case "IdsSelected":
+      return `Selected ${event.selected} IDs, not found ${event.notFound} requested IDs`;
     case "AnalysisCompleted":
       return `Analyzed ${event.aspect}`;
     case "RelationIssueFound":
@@ -112,7 +128,9 @@ export function describeEvent(event: ModeEvent): string {
     case "RelationsResolved":
       return `Relations: ${event.declared} declared, ${event.edges} edges, ${event.broken} broken`;
     case "BrokenRelationFound":
-      return `Broken relation: ${describeBrokenRelation(event.relation)} (target not found)`;
+      return `Broken relation: ${describeBrokenRelation(event.relation)}`;
+    case "RelationsSelected":
+      return `Selected ${event.rows} relations, not found ${event.notFound} requested IDs`;
     case "GraphBuilt":
       return `Graph: ${event.nodes} nodes, ${event.links} edges (${event.relations} relations)`;
     case "OutputWritten":

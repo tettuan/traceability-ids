@@ -104,34 +104,23 @@ export function formatResult(
 
 /**
  * 類似度検索結果をシンプル形式でフォーマット
+ *
+ * 1行1件で ID だけを出す（見出しなし。パイプで ID をそのまま渡せる）。
+ * `showDistance` のときは `{id}\t{distance}`。
+ *
  * @param result 類似度検索結果
  * @param showDistance 距離スコアを表示するか
- * @returns フォーマット済み文字列
+ * @returns フォーマット済み文字列（結果が無ければ空文字列）
  */
 export function formatSearchResultAsSimple(
   result: SimilaritySearchResult,
   showDistance = false,
 ): string {
-  const lines: string[] = [];
-
-  // ヘッダー
-  lines.push(`# Query: ${result.query}`);
-  lines.push(`# Distance calculator: ${result.distanceCalculator}`);
-  lines.push(`# Results: ${result.items.length} IDs`);
-  lines.push("");
-
-  // 各ID
-  result.items.forEach((item) => {
-    if (showDistance) {
-      lines.push(
-        `${item.id.fullId} (distance: ${item.distance.toFixed(3)})`,
-      );
-    } else {
-      lines.push(item.id.fullId);
-    }
-  });
-
-  return lines.join("\n") + "\n";
+  return result.items
+    .map((item) =>
+      showDistance ? `${item.id.fullId}\t${item.distance.toFixed(3)}\n` : `${item.id.fullId}\n`
+    )
+    .join("");
 }
 
 /**

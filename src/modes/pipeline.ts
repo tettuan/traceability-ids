@@ -8,7 +8,13 @@ import type { ModeIO } from "../core/events.ts";
 import { extractIds } from "../core/extractor.ts";
 import { writeText } from "../core/io.ts";
 import { DEFAULT_EXTENSIONS, scanFiles } from "../core/scanner.ts";
-import { DEFAULT_FRONTMATTER, type FrontmatterPolicy } from "../core/options.ts";
+import {
+  DEFAULT_FRONTMATTER,
+  DEFAULT_HASH_POLICY,
+  type FrontmatterPolicy,
+  type HashPolicy,
+} from "../core/options.ts";
+import { DEFAULT_HASH_RULE, hasHash, type HashRule } from "../core/id.ts";
 import type { TraceabilityId } from "../core/types.ts";
 
 /** What to scan */
@@ -19,6 +25,17 @@ export interface InputSpec {
   extensions?: readonly string[];
   /** Whether IDs in frontmatter are extracted (default: include) */
   frontmatter?: FrontmatterPolicy;
+  /** Hash form of the last segment (default: DEFAULT_HASH_RULE) */
+  hashRule?: HashRule;
+  /** Whether IDs without a hash are kept (default: any) */
+  hashes?: HashPolicy;
+}
+
+/**
+ * Hash rule of an input spec
+ */
+export function hashRuleOf(input: InputSpec): HashRule {
+  return input.hashRule ?? DEFAULT_HASH_RULE;
 }
 
 /** Whether a mode stops (`stop`) or goes on with empty results (`continue`) when nothing is found */
@@ -35,9 +52,10 @@ export interface CollectedIds {
 /**
  * Scan the input and extract every ID occurrence
  *
- * Emits `ScanStarted` → `FilesScanned` → `IdsExtracted`, or stops after
+ * Emits `ScanStarted` → `FilesScanned` → `HashlessExcluded`? → `IdsExtracted`, or stops after
  * `FilesScanned` with `Stopped(NoFiles)` / after `IdsExtracted` with `Stopped(NoIds)`.
  *
+ * With `hashes: "required"` IDs without a hash are dropped and counted in `HashlessExcluded`.
  * With `emptyPolicy: "continue"` it never stops and returns empty results instead.
  *
  * @returns collected IDs, or `null` when stopped because there is nothing to process
@@ -60,7 +78,13 @@ export async function collectIds(
     return null;
   }
 
-  const rawIds = await extractIds(files, frontmatter);
+  const extracted = await extractIds(files, frontmatter, hashRuleOf(input));
+  const rawIds = (input.hashes ?? DEFAULT_HASH_POLICY) === "required"
+    ? extracted.filter(hasHash)
+    : extracted;
+  if (rawIds.length < extracted.length) {
+    io.report({ type: "HashlessExcluded", count: extracted.length - rawIds.length });
+  }
   const unique = new Set(rawIds.map((id) => id.fullId)).size;
   io.report({ type: "IdsExtracted", total: rawIds.length, unique });
   if (rawIds.length === 0 && emptyPolicy === "stop") {

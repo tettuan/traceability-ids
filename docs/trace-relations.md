@@ -108,10 +108,20 @@ graph モードが実装する。関係は既存の引数（`--skip-frontmatter`
 参照先が「存在する」とは、その ID が**関係の値の行以外**のどこか（見出し・本文・他の項目の `id` など）
 に出現することをいう。`trace_to` に書いただけでは存在しない。
 
-参照先が見つからない関係はリンク切れとして報告し、終了コードを 1 にする。
+参照先が見つからない関係は broken として、理由（`BrokenReason`）とともに報告する。
+graph モードでは終了コードを 1 にする。
+
+| 理由             | 条件                                                               | 直し方             |
+| ---------------- | ------------------------------------------------------------------ | ------------------ |
+| `NodeMissing`    | 参照先の unique key（版を除いた ID）を持つ項目がない（リンク切れ） | 参照先を作る・消す |
+| `VersionMissing` | 版付きの参照で、その unique key の項目はあるが、その版がない       | 版を付け直す・外す |
+
+`VersionMissing` は存在する版（`existing`: fullId の配列、新しい順。版なしでのみ書かれた項目は
+unique key そのもの）を持つ。版なしの参照が見つからない場合は常に `NodeMissing`。
 
 ```
-Broken relation: docs/a.md:22: req:a:x-abc#v1 -trace_to-> req:a:y-def#v1 (target not found)
+Broken relation: docs/b.md:8: req:auth:session-timeout-4d5e6f#20260201 -trace_to-> req:auth:login-flow-1a2b3c#20251201 (version not found: node exists with 20260101, no version)
+Broken relation: docs/b.md:9: req:auth:session-timeout-4d5e6f#20260201 -trace_to-> req:auth:missing-node-000000 (node not found)
 ```
 
 | 状況                               | 終了コード |
@@ -119,6 +129,8 @@ Broken relation: docs/a.md:22: req:a:x-abc#v1 -trace_to-> req:a:y-def#v1 (target
 | リンク切れなし                     | 0          |
 | リンク切れあり                     | 1          |
 | リンク切れあり + `--allow-missing` | 0          |
+
+（graph モードの場合。relations モードの終了コードは要求 ID の有無だけで決まる。後述）
 
 ### 警告（辺を作らない記述）
 
@@ -142,11 +154,47 @@ Warning: docs/b.md:24: trace_to value is not a traceability ID: us:stock:reliabi
 - ノードの詳細パネルでは、関係の辺に `trace_to →`（自分が書いた）/ `← trace_to`（書かれた）を表示する。
 - 同じ関係が複数箇所（frontmatter と本文の yaml ブロックなど）に書かれていても、辺は 1 本。
 
+## データとして出す: relations モード（`/relations`）
+
+関係を宣言 1 件 = 1 行で出す。target は書かれたとおり、位置（`path:line`）を持つ。
+
+```bash
+# 被参照: login-flow を指す宣言
+relations.ts --ids req:auth:login-flow-1a2b3c --direction in ./docs
+# docs/b.md:6: req:auth:session-timeout-4d5e6f#20260201 -derived_from-> req:auth:login-flow-1a2b3c
+
+# 解決できなかった宣言だけ（理由つき）
+relations.ts --broken ./docs
+```
+
+| オプション             | 意味                                                                |
+| ---------------------- | ------------------------------------------------------------------- |
+| `--ids` / `--ids-file` | この ID に触れる宣言だけ（無ければ全宣言。向きは `out`）            |
+| `--direction in        | out                                                                 |
+| `--kind`               | `derived_from` / `trace_to`（複数指定・カンマ区切り可。既定は全種） |
+| `--broken`             | 解決できなかった宣言だけ（既定は解決できた宣言だけ）                |
+| `--format simple       | tsv                                                                 |
+| `--versions latest     | all`                                                                |
+
+選択の規則（`src/relations/select.ts`）:
+
+- `out`: 宣言した項目（source）が、要求 ID の解決先に含まれる
+- `in`: 解決できた宣言は解決先が要求 ID の解決先と重なる。broken の宣言は target が要求 ID を
+  名指す（要求が版付きなら完全一致、版なしなら unique key 一致）
+- 自己参照（`out` かつ `in`）は `out` の 1 行
+- 行の解決結果は `resolution: { status: "resolved"; targets } | { status: "broken"; reason }`
+
+終了コード: 要求 ID が項目にも宣言の target にも無いとき 1（`--allow-missing` で 0）。
+broken の有無は終了コードに影響しない（graph と異なる。`--broken` の出力で判断する）。
+
 ### 実装
 
-| 役割                         | 場所                                       |
-| ---------------------------- | ------------------------------------------ |
-| 種別・ラベル・警告の型       | `src/core/relations.ts`                    |
-| 抽出（YAML 領域・起点・値）  | `src/relations/extract.ts`                 |
-| 解決（版・存在・リンク切れ） | `src/relations/resolve.ts`                 |
-| グラフへの組み込み           | `src/modes/graph.ts`、`src/visualization/` |
+| 役割                            | 場所                                       |
+| ------------------------------- | ------------------------------------------ |
+| 種別・ラベル・警告・理由の型    | `src/core/relations.ts`                    |
+| 抽出（YAML 領域・起点・値）     | `src/relations/extract.ts`                 |
+| 解決（版・存在・broken の理由） | `src/relations/resolve.ts`                 |
+| 選択（要求 ID・向き）           | `src/relations/select.ts`                  |
+| 出力                            | `src/formatter/relations_formatter.ts`     |
+| グラフへの組み込み              | `src/modes/graph.ts`、`src/visualization/` |
+| relations モード                | `src/modes/relations.ts`、`relations.ts`   |
