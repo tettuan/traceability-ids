@@ -11,6 +11,10 @@
  * `full` (`id:` / `full: req:a:b-abc#v1`). Without an own ID the relations are not drawn
  * and `SourceMissing` is reported; a file never stands in for an ID.
  *
+ * A YAML comment (`#` at the start of a value or after whitespace, outside quotes) is
+ * removed before a value is read, so `derived_from:  # note` is a key whose values are
+ * the list under it; the `#` of a version (`...-a1b2c3#v1`) is not a comment.
+ *
  * Regions are read line by line from their indentation, not by a YAML parser, so
  * documents that are not strictly valid YAML (a plain scalar starting with a backquote,
  * for example) still yield their relations, like IDs are found in any text.
@@ -67,6 +71,29 @@ export function yamlRegions(content: string, frontmatter: FrontmatterPolicy): Ya
   return regions;
 }
 
+/**
+ * A value without its YAML comment, trimmed (pure)
+ *
+ * A comment starts at `#` that begins the value or follows whitespace, outside single
+ * or double quotes. `#` right after other characters (`...-a1b2c3#v1`) is kept.
+ */
+export function stripYamlComment(value: string): string {
+  let quote: "'" | '"' | null = null;
+  for (let i = 0; i < value.length; i++) {
+    const ch = value[i];
+    if (quote === '"' && ch === "\\") {
+      i++;
+    } else if (quote !== null) {
+      if (ch === quote) quote = null;
+    } else if (ch === '"' || ch === "'") {
+      quote = ch;
+    } else if (ch === "#" && (i === 0 || /\s/.test(value[i - 1]))) {
+      return value.substring(0, i).trim();
+    }
+  }
+  return value.trim();
+}
+
 function classify(text: string): Line {
   const trimmed = text.trim();
   if (trimmed === "" || trimmed.startsWith("#")) return { kind: "blank" };
@@ -77,13 +104,26 @@ function classify(text: string): Line {
       column: key[1].length + (key[2]?.length ?? 0),
       item: key[2] !== undefined,
       key: key[3],
-      value: (key[4] ?? "").trim(),
+      value: stripYamlComment(key[4] ?? ""),
     };
   }
   const item = text.match(ITEM_LINE);
   return item
-    ? { kind: "other", column: item[1].length, item: true, value: (item[2] ?? "").trim() }
-    : { kind: "other", column: text.length - text.trimStart().length, item: false, value: trimmed };
+    ? { kind: "other", column: item[1].length, item: true, value: stripYamlComment(item[2] ?? "") }
+    : {
+      kind: "other",
+      column: text.length - text.trimStart().length,
+      item: false,
+      value: stripYamlComment(trimmed),
+    };
+}
+
+/**
+ * Whether a line is a list item written at the column of the mapping's keys
+ * (`key:` / `- value`, a sequence value of a sibling key, not a new item)
+ */
+function isCompactItem(line: Line, column: number): boolean {
+  return line.kind === "other" && line.item && line.column === column;
 }
 
 /**
@@ -96,7 +136,7 @@ function mappingKeys(lines: readonly Line[], at: number, column: number): number
   // upward, until the item start or a shallower line
   for (let j = at - 1; j >= 0 && !startsHere; j--) {
     const line = lines[j];
-    if (line.kind === "blank" || line.column > column) continue;
+    if (line.kind === "blank" || line.column > column || isCompactItem(line, column)) continue;
     if (line.kind === "other" || line.column < column) break;
     keys.unshift(j);
     if (line.item) break;
@@ -104,7 +144,7 @@ function mappingKeys(lines: readonly Line[], at: number, column: number): number
   // downward, until the next item or a shallower line
   for (let j = at + 1; j < lines.length; j++) {
     const line = lines[j];
-    if (line.kind === "blank" || line.column > column) continue;
+    if (line.kind === "blank" || line.column > column || isCompactItem(line, column)) continue;
     if (line.kind === "other" || line.column < column || line.item) break;
     keys.push(j);
   }
