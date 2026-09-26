@@ -25,6 +25,7 @@ const ISSUES: { [K in RelationIssue["kind"]]: Extract<RelationIssue, { kind: K }
     ...AT,
   },
   InvalidTarget: { kind: "InvalidTarget", relation: "derived_from", value: "us:a:b", ...AT },
+  InvalidYaml: { kind: "InvalidYaml", reason: "bad indentation", ...AT },
 };
 
 const DECLARATION: RelationDeclaration = {
@@ -42,11 +43,11 @@ Deno.test("relations - every kind is recognized and labeled", () => {
   assertEquals(isRelationKind("id"), false);
 });
 
-Deno.test("relations - every issue kind is described with its position and relation", () => {
+Deno.test("relations - every issue kind is described with its position (and relation)", () => {
   for (const issue of Object.values(ISSUES)) {
     const text = describeRelationIssue(issue);
     assertStringIncludes(text, positionKey(AT));
-    assertStringIncludes(text, issue.relation);
+    if ("relation" in issue) assertStringIncludes(text, issue.relation);
     assertStringIncludes(describeEvent({ type: "RelationIssueFound", issue }), text);
   }
 });

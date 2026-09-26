@@ -1,6 +1,6 @@
 /**
- * Acceptance criteria of issues #10–#14, run as the CLI commands written in the issues
- * against the reproduction files they share.
+ * Acceptance criteria of issues, run as the CLI commands written in the issues
+ * against their reproduction files.
  */
 
 import { assert, assertEquals, assertStringIncludes } from "@std/assert";
@@ -53,11 +53,15 @@ interface CliRun {
 /**
  * Run a command in a directory holding the reproduction files
  */
-async function cli<T>(spec: CommandSpec<T>, argv: string[]): Promise<CliRun> {
+async function cli<T>(
+  spec: CommandSpec<T>,
+  argv: string[],
+  files: Readonly<Record<string, string>> = ISSUE_FILES,
+): Promise<CliRun> {
   const root = await Deno.makeTempDir();
   const cwd = Deno.cwd();
   try {
-    for (const [path, content] of Object.entries(ISSUE_FILES)) {
+    for (const [path, content] of Object.entries(files)) {
       await Deno.mkdir(`${root}/${path.substring(0, path.lastIndexOf("/"))}`, { recursive: true });
       await Deno.writeTextFile(`${root}/${path}`, content);
     }
@@ -284,4 +288,37 @@ Deno.test("#14 an unknown option is exit 2 in every command", async () => {
     assertEquals(run.code, 2);
     assert(run.stderr.some((line) => line.includes("UnknownOption")), run.stderr.join("\n"));
   }
+});
+
+// ── #17 YAML comments on relation keys ──
+
+Deno.test("#17 relations: a comment on the key line keeps the list under it, no warning", async () => {
+  const files = {
+    "docs/a.md": `---
+traceability:
+  - id:
+      full: us:x:y-1a2b3c#20260101
+    derived_from:        # comment
+      - req:x:z-4d5e6f#20260101
+---
+# z \`req:x:z-4d5e6f#20260101\`
+`,
+  };
+  const run = await cli(relationsCommand, ["--format", "tsv", "./docs"], files);
+  assertEquals(run.code, 0);
+  assert(run.stderr.includes("Relations: 1 declared, 1 edges, 0 broken"), run.stderr.join("\n"));
+  assertEquals(run.stderr.filter((line) => line.startsWith("Warning:")), []);
+  assertEquals(lines(run.stdout), [
+    "out\tderived_from\tus:x:y-1a2b3c#20260101\treq:x:z-4d5e6f#20260101\tdocs/a.md:6\t",
+  ]);
+});
+
+Deno.test("#17 relations: trace_to: [] with a comment gives no warning", async () => {
+  const files = {
+    "docs/a.md": "---\nid: us:x:y-1a2b3c#20260101\ntrace_to: []   # comment\n---\n",
+  };
+  const run = await cli(relationsCommand, ["./docs"], files);
+  assertEquals(run.code, 0);
+  assertEquals(run.stderr.filter((line) => line.startsWith("Warning:")), []);
+  assert(run.stderr.includes("Relations: 0 declared, 0 edges, 0 broken"));
 });
