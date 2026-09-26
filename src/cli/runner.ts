@@ -52,7 +52,7 @@ export function exitCodesHelp(): string {
   return [
     "EXIT CODES:",
     `  ${OUTCOME_EXIT_CODES.complete}  success`,
-    `  ${OUTCOME_EXIT_CODES.partial}  some requested IDs were not found (extract; see --allow-missing)`,
+    `  ${OUTCOME_EXIT_CODES.partial}  some requested IDs or relation targets were not found (extract, graph; see --allow-missing)`,
     ...rows,
     `  ${UNEXPECTED_EXIT_CODE} unexpected error`,
   ].join("\n");

@@ -17,6 +17,7 @@
 - 同じファイルは重複して扱わない（指定順を保持）
 - 存在しないパスは `PathNotFound` エラーとする
 - `--skip-frontmatter` を指定すると、frontmatter（先頭の `---` 行から次の `---` または `...` 行まで）の ID を抽出しない。閉じ行がないブロックは frontmatter とみなさない。本文の ID の行番号は元ファイルの行のまま（Issue #1）
+- graph モードは、項目が宣言する関係 `derived_from`（派生元）/ `trace_to`（追跡先・参照先）を抽出し、起点の ID から参照先の ID への矢印として描く。起点は宣言したマッピング自身の `id` に限り、ファイルを起点にしない。読み取る範囲は `--skip-frontmatter`、版なしの参照は `--versions`、リンク切れの終了コードは `--allow-missing` に従う（Issue #2、定義と仕様は [trace-relations.md](trace-relations.md)）
 - ファイルパスを記録する
 - 全モード（cluster / search / extract / graph / analyze / list）で共通
 
@@ -423,7 +424,7 @@ deno run --allow-read src/cli.ts ./data ./output/context.md \
 - 出力フォーマットの選択（JSON/Markdown/CSV）
 - アルゴリズム固有のパラメータ
 - 走査対象の拡張子（`--ext`、既定: md）
-- frontmatter を抽出対象から外す（`--skip-frontmatter`、既定: 含める）
+- frontmatter を抽出対象から外す（`--skip-frontmatter`、既定: 含める。graph モードでは関係の読み取りにも適用）
 
 受け付ける値は `src/core/options.ts` で定義し、範囲外の値はエラーとする。
 

@@ -10,6 +10,9 @@
 ```mermaid
 flowchart LR
     A[ファイルスキャン] --> B[ID抽出・重複排除]
+    A --> R[関係の抽出]
+    R --> S[関係の解決<br/>版・リンク切れ]
+    S --> F
     B --> C[距離行列作成]
     C --> D[クラスタリング]
     C --> E[MDS座標計算]
@@ -22,6 +25,9 @@ flowchart LR
 ## モジュール構成
 
 ```
+src/relations/
+├── extract.ts        # derived_from / trace_to の抽出（YAML 領域・起点・値）
+└── resolve.ts        # 参照先の解決（--versions）とリンク切れ検出
 src/visualization/
 ├── mds.ts            # Classical MDS（Jacobi固有値分解）
 ├── graph_data.ts     # ノード/エッジ変換、Tab順序計算
@@ -68,23 +74,35 @@ graph.ts              # CLIエントリポイント
 
 ## CLIオプション
 
-| オプション           | 説明                             | デフォルト          | 値                                            |
-| -------------------- | -------------------------------- | ------------------- | --------------------------------------------- |
-| `--output`           | 出力HTMLファイルパス             | `tmp/graph-3d.html` | ファイルパス                                  |
-| `--distance`         | 距離計算手法                     | `structural`        | levenshtein, jaro-winkler, cosine, structural |
-| `--algorithm`        | クラスタリングアルゴリズム       | `hierarchical`      | hierarchical, kmeans, dbscan                  |
-| `--threshold`        | クラスタリング閾値               | `0.3`               | 数値                                          |
-| `--edge-threshold`   | エッジ表示閾値                   | `0.5`               | 数値 (0-1)                                    |
-| `--color-by`         | 色分けモード                     | `cluster`           | cluster, scope, level                         |
-| `--layout`           | レイアウトモード                 | `force`             | force, mds                                    |
-| `--k`                | K-Meansクラスタ数                | `0` (自動)          | 数値                                          |
-| `--epsilon`          | DBSCAN近傍半径                   | `0.3`               | 数値                                          |
-| `--min-points`       | DBSCAN最小ポイント数             | `2`                 | 数値                                          |
-| `--ext`              | 走査対象の拡張子（カンマ区切り） | `md`                | 例: md,rs,ts                                  |
-| `--skip-frontmatter` | frontmatter 内の ID を抽出しない | `false`             | Boolean                                       |
+| オプション           | 説明                                   | デフォルト          | 値                                            |
+| -------------------- | -------------------------------------- | ------------------- | --------------------------------------------- |
+| `--output`           | 出力HTMLファイルパス                   | `tmp/graph-3d.html` | ファイルパス                                  |
+| `--distance`         | 距離計算手法                           | `structural`        | levenshtein, jaro-winkler, cosine, structural |
+| `--algorithm`        | クラスタリングアルゴリズム             | `hierarchical`      | hierarchical, kmeans, dbscan                  |
+| `--threshold`        | クラスタリング閾値                     | `0.3`               | 数値                                          |
+| `--edge-threshold`   | エッジ表示閾値                         | `0.5`               | 数値 (0-1)                                    |
+| `--color-by`         | 色分けモード                           | `cluster`           | cluster, scope, level                         |
+| `--layout`           | レイアウトモード                       | `force`             | force, mds                                    |
+| `--k`                | K-Meansクラスタ数                      | `0` (自動)          | 数値                                          |
+| `--epsilon`          | DBSCAN近傍半径                         | `0.3`               | 数値                                          |
+| `--min-points`       | DBSCAN最小ポイント数                   | `2`                 | 数値                                          |
+| `--ext`              | 走査対象の拡張子（カンマ区切り）       | `md`                | 例: md,rs,ts                                  |
+| `--skip-frontmatter` | frontmatter 内の ID と関係を抽出しない | `false`             | Boolean                                       |
+| `--versions`         | 版なしの関係の参照先の解決             | `latest`            | latest, all                                   |
+| `--allow-missing`    | リンク切れがあっても終了コード 0       | `false`             | Boolean                                       |
 
 入力は1つ以上のパス（`<input-path...>`）。ディレクトリは再帰的に走査し、明示した
 ファイルは拡張子に関係なく対象に含める。
+
+## 関係（derived_from / trace_to）
+
+項目が宣言した関係を、起点の ID から参照先の ID への矢印として描く。定義と抽出・解決の
+仕様は [trace-relations.md](trace-relations.md) を参照。
+
+- 色: `derived_from` は橙、`trace_to` は青（`RELATION_COLORS`、凡例も同じ定義から生成）
+- 類似度の辺（`kind: "similarity"`）と違い、エッジ閾値の影響を受けない。「Relations」チェックボックスで表示を切り替える
+- `GraphLink.kind` は `LINK_KINDS`（`similarity` と `RELATION_KINDS`）のいずれか
+- 起点のない宣言・ID でない値は警告、参照先が見つからない関係はリンク切れとして報告し、終了コード 1（`--allow-missing` で 0）
 
 ## キーボードショートカット
 

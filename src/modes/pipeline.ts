@@ -8,7 +8,7 @@ import type { ModeIO } from "../core/events.ts";
 import { extractIds } from "../core/extractor.ts";
 import { writeText } from "../core/io.ts";
 import { DEFAULT_EXTENSIONS, scanFiles } from "../core/scanner.ts";
-import type { FrontmatterPolicy } from "../core/options.ts";
+import { DEFAULT_FRONTMATTER, type FrontmatterPolicy } from "../core/options.ts";
 import type { TraceabilityId } from "../core/types.ts";
 
 /** What to scan */
@@ -50,7 +50,7 @@ export async function collectIds(
 ): Promise<CollectedIds | null> {
   const paths = typeof input.inputDir === "string" ? [input.inputDir] : input.inputDir;
   const extensions = input.extensions ?? DEFAULT_EXTENSIONS;
-  const frontmatter = input.frontmatter ?? "include";
+  const frontmatter = input.frontmatter ?? DEFAULT_FRONTMATTER;
 
   io.report({ type: "ScanStarted", paths, extensions, frontmatter });
   const files = await scanFiles(paths, extensions);

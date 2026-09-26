@@ -396,6 +396,10 @@ export type {
    * A node in the 3D graph
    */
   GraphNode,
+  /**
+   * Kind of a link: similarity or a declared relation
+   */
+  LinkKind,
 } from "./visualization/graph_data.ts";
 
 /**
@@ -414,7 +418,12 @@ export type {
  * console.log(`${graphData.nodes.length} nodes, ${graphData.links.length} links`);
  * ```
  */
-export { buildGraphData } from "./visualization/graph_data.ts";
+export {
+  buildGraphData,
+  isRelationLink,
+  LINK_KINDS,
+  SIMILARITY_LINK,
+} from "./visualization/graph_data.ts";
 
 export type {
   /**
@@ -521,7 +530,7 @@ export type { ModeOutcome } from "./core/outcome.ts";
 export type { NonEmptyArray } from "./core/nonempty.ts";
 export { frontmatterLineCount } from "./core/frontmatter.ts";
 export type { ParameterRule } from "./core/params.ts";
-export { COMPLETE, lookupOutcome, OUTCOME_EXIT_CODES } from "./core/outcome.ts";
+export { applyAllowMissing, COMPLETE, lookupOutcome, OUTCOME_EXIT_CODES } from "./core/outcome.ts";
 
 export type { IdComponents, UniqueKey } from "./core/id.ts";
 export {
@@ -551,6 +560,8 @@ export {
   ALGORITHM_NAMES,
   CLUSTER_FORMATS,
   COLOR_MODES,
+  DEFAULT_FRONTMATTER,
+  DEFAULT_VERSION_MATCH,
   DISTANCE_NAMES,
   EXTRACT_FORMATS,
   FRONTMATTER_POLICIES,
@@ -558,8 +569,32 @@ export {
   LIST_FORMATS,
   SEARCH_FORMATS,
   SORT_KEYS,
+  VERSION_MATCH_DESCRIPTIONS,
   VERSION_MATCH_MODES,
 } from "./core/options.ts";
+
+// ============================================================================
+// Relations: derived_from (派生元) / trace_to (追跡先・参照先)
+// ============================================================================
+
+export type {
+  ExtractedRelations,
+  RelationDeclaration,
+  RelationEdge,
+  RelationIssue,
+  RelationKind,
+  ResolvedRelations,
+  SourcePosition,
+} from "./core/relations.ts";
+export {
+  describeBrokenRelation,
+  describeRelationIssue,
+  isRelationKind,
+  RELATION_KINDS,
+  RELATION_LABELS,
+} from "./core/relations.ts";
+export { extractRelations, extractRelationsFromText } from "./relations/extract.ts";
+export { resolveRelations } from "./relations/resolve.ts";
 
 export type { IdsSource } from "./extract/loader.ts";
 export type { IdMatchGroup } from "./extract/resolver.ts";

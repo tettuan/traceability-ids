@@ -8,7 +8,24 @@ import type { ColorMode, Layout } from "../core/options.ts";
  * @module
  */
 
-import type { GraphData } from "./graph_data.ts";
+import { RELATION_KINDS, RELATION_LABELS, type RelationKind } from "../core/relations.ts";
+import { type GraphData, SIMILARITY_LINK } from "./graph_data.ts";
+
+/** Color of each relation link and its arrow */
+export const RELATION_COLORS: { readonly [K in RelationKind]: string } = {
+  "derived_from": "#ffa94d",
+  "trace_to": "#4dd0ff",
+};
+
+/**
+ * Legend of the relation links, one line per relation kind
+ */
+export function relationLegendHTML(): string {
+  return RELATION_KINDS.map((kind) =>
+    `<span style="color:${RELATION_COLORS[kind]}">&#10230;</span> ` +
+    `${kind} (${escapeHtml(RELATION_LABELS[kind])})`
+  ).join("<br>\n      ");
+}
 
 /** Options for HTML generation */
 export interface HTMLGenerationOptions {
@@ -64,6 +81,8 @@ export function generateHTML(
   #detail-panel .edge-item { display: flex; justify-content: space-between; align-items: center; padding: 3px 0; border-bottom: 1px solid #1a1a2e; cursor: pointer; }
   #detail-panel .edge-item:hover { background: rgba(138,170,255,0.1); }
   #detail-panel .edge-id { color: #cde; font-size: 11px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 8px; }
+  .relation-legend { font-size: 11px; line-height: 1.6; margin-top: 4px; color: #cde; }
+  #detail-panel .edge-kind { color: #fc8; font-size: 11px; font-family: monospace; white-space: nowrap; }
   #detail-panel .edge-dist { color: #8af; font-size: 11px; font-family: monospace; white-space: nowrap; }
   #node-indicator { position: absolute; bottom: 12px; right: 12px; background: rgba(20,20,40,0.9); padding: 8px 14px; border-radius: 6px; z-index: 10; font-size: 12px; color: #8af; display: none; }
   #stats { position: absolute; bottom: 12px; left: 12px; background: rgba(20,20,40,0.85); padding: 8px 14px; border-radius: 6px; z-index: 10; font-size: 12px; color: #889; }
@@ -96,6 +115,12 @@ export function generateHTML(
   <div class="control-group">
     <label>Edge threshold <span class="threshold-val" id="threshold-display"></span></label>
     <input type="range" id="edge-threshold" min="0" max="1" step="0.01">
+  </div>
+  <div class="control-group">
+    <label><input type="checkbox" id="show-relations" checked> Relations</label>
+    <div class="relation-legend">
+      ${relationLegendHTML()}
+    </div>
   </div>
   <div class="control-group">
     <label>Layout</label>
@@ -148,14 +173,24 @@ export function generateHTML(
     return '#888';
   }
 
+  // Relation links (derived_from / trace_to) are directed and always drawn;
+  // similarity links follow the edge threshold
+  var RELATION_COLORS = ${JSON.stringify(RELATION_COLORS)};
+  function isRelation(l) { return l.kind !== ${JSON.stringify(SIMILARITY_LINK)}; }
+  var showRelations = true;
+  function linkVisible(l, threshold) {
+    return isRelation(l) ? showRelations : l.distance <= threshold;
+  }
+  var similarityLinks = allLinks.filter(function(l) { return !isRelation(l); });
+
   // Compute max distance for edge styling
   var maxDist = 0;
-  allLinks.forEach(function(l) { if (l.distance > maxDist) maxDist = l.distance; });
+  similarityLinks.forEach(function(l) { if (l.distance > maxDist) maxDist = l.distance; });
 
   // --- Edge-based node coloring ---
   var EDGE_COLOR_LIMIT = 12;
   var nodeEdges = {};
-  allLinks.forEach(function(l) {
+  similarityLinks.forEach(function(l) {
     var sid = l.source, tid = l.target;
     if (!nodeEdges[sid]) nodeEdges[sid] = [];
     if (!nodeEdges[tid]) nodeEdges[tid] = [];
@@ -269,14 +304,20 @@ export function generateHTML(
     .nodeThreeObject(function(n) { return createNodeMesh(n, currentColorMode); })
     .nodeThreeObjectExtend(false)
     .linkWidth(function(l) {
+      if (isRelation(l)) return 2.5;
       var t = maxDist > 0 ? l.distance / maxDist : 0;
       return 9 * (1 - t) + 1.0;
     })
     .linkOpacity(0.9)
     .linkColor(function(l) {
+      if (isRelation(l)) return RELATION_COLORS[l.kind] || '#fff';
       var a = maxDist > 0 ? 0.5 * (1 - l.distance / maxDist) + 0.5 : 0.7;
       return distToHSLA(l.distance, a);
     })
+    .linkCurvature(function(l) { return isRelation(l) ? 0.2 : 0; })
+    .linkDirectionalArrowLength(function(l) { return isRelation(l) ? 6 : 0; })
+    .linkDirectionalArrowRelPos(1)
+    .linkDirectionalArrowColor(function(l) { return RELATION_COLORS[l.kind] || '#fff'; })
     .backgroundColor('#0a0a1a')
     .onNodeClick(function(node) { showDetail(node); });
 
@@ -389,6 +430,11 @@ export function generateHTML(
     filterEdges(currentThreshold);
   });
 
+  document.getElementById('show-relations').addEventListener('change', function() {
+    showRelations = this.checked;
+    filterEdges(currentThreshold);
+  });
+
   // Color mode
   document.getElementById('color-by').addEventListener('change', function() {
     currentColorMode = this.value;
@@ -436,10 +482,11 @@ export function generateHTML(
     currentLinks.forEach(function(l) {
       var sid = typeof l.source === 'object' ? l.source.id : l.source;
       var tid = typeof l.target === 'object' ? l.target.id : l.target;
+      var label = isRelation(l) ? l.kind : '';
       if (sid === node.id) {
-        neighbors.push({ id: tid, distance: l.distance });
+        neighbors.push({ id: tid, distance: l.distance, label: label ? label + ' \u2192' : '' });
       } else if (tid === node.id) {
-        neighbors.push({ id: sid, distance: l.distance });
+        neighbors.push({ id: sid, distance: l.distance, label: label ? '\u2190 ' + label : '' });
       }
     });
     neighbors.sort(function(a, b) { return a.distance - b.distance; });
@@ -453,6 +500,7 @@ export function generateHTML(
       var nb = neighbors[i];
       html += '<div class="edge-item" data-node-id="' + escapeHtml(nb.id) + '">'
         + '<span class="edge-id">' + escapeHtml(nb.id) + '</span>'
+        + (nb.label ? '<span class="edge-kind">' + escapeHtml(nb.label) + '</span>&nbsp;' : '')
         + '<span class="edge-dist">' + nb.distance.toFixed(4) + '</span>'
         + '</div>';
     }
@@ -485,7 +533,7 @@ export function generateHTML(
   }
 
   function filterEdges(threshold) {
-    var filtered = allLinks.filter(function(l) { return l.distance <= threshold; });
+    var filtered = allLinks.filter(function(l) { return linkVisible(l, threshold); });
     graph.graphData({ nodes: rawData.nodes, links: filtered });
     updateStats(rawData.nodes.length, filtered.length);
   }
@@ -630,7 +678,7 @@ export function generateHTML(
     });
 
     // Apply threshold filter
-    selectedLinks = selectedLinks.filter(function(l) { return l.distance <= currentThreshold; });
+    selectedLinks = selectedLinks.filter(function(l) { return linkVisible(l, currentThreshold); });
 
     // Shift selected nodes so their centroid is at origin (0,0,0)
     var cx = 0, cy = 0, cz = 0;
@@ -664,7 +712,7 @@ export function generateHTML(
     isFiltered = false;
     resetBtn.style.display = 'none';
     clearFocus();
-    var filtered = fullLinks.filter(function(l) { return l.distance <= currentThreshold; });
+    var filtered = fullLinks.filter(function(l) { return linkVisible(l, currentThreshold); });
     graph.graphData({ nodes: fullNodes, links: filtered });
     rawData.nodes = fullNodes;
     updateStats(fullNodes.length, filtered.length);

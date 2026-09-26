@@ -6,6 +6,7 @@ import type {
   TraceabilityId,
 } from "../core/types.ts";
 import { readText } from "../core/io.ts";
+import { DEFAULT_VERSION_MATCH } from "../core/options.ts";
 import { resolveTargetId } from "./resolver.ts";
 
 // Constants for constraints
@@ -36,7 +37,7 @@ export async function extractContext(
   const contexts: ExtractedContext[] = [];
   const notFound: string[] = [];
 
-  const mode = request.versions ?? "latest";
+  const mode = request.versions ?? DEFAULT_VERSION_MATCH;
 
   // Process each target ID
   for (const targetId of request.ids) {

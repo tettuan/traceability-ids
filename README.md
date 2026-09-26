@@ -73,6 +73,7 @@ list sorted by similarity**. This enables:
   - Interactive 3D force-directed graph
   - MDS layout preserving distances
   - Color by cluster, scope, or level
+  - Declared relations `derived_from` / `trace_to` drawn as arrows, broken links reported
   - Rectangle selection and keyboard navigation
 
 - **ID Index / Listing** (`/list`)
@@ -256,7 +257,33 @@ deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/graph \
 # DBSCAN clustering
 deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/graph \
   ./data --algorithm dbscan --epsilon 0.4
+
+# Relations from the body only; exit 0 even with broken links
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/graph \
+  ./docs --skip-frontmatter --allow-missing
 ```
+
+Besides similarity edges, the graph draws the relations each item declares:
+
+```yaml
+traceability:
+  - id:
+      full: req:apikey:persistence-2f8d5b#20251111a
+    derived_from: # 派生元
+      - req:apikey:data-mgmt-6c9e4a#20251111a
+    trace_to: # 追跡先（参照先）
+      - dsg:apikey:storage-schema-1a2b3c
+```
+
+- Only the referencing item writes the relation; the source of an arrow is the item's own `id`
+  (`id: <ID>` or `id:` / `full: <ID>`). Relations with no own ID are skipped with a warning.
+- Relations are read from the frontmatter and fenced `yaml` blocks; `--skip-frontmatter`
+  limits them to the blocks.
+- A target without a version follows `--versions` (newest version by default).
+- A target that appears nowhere except in relation values is a broken link: it is reported
+  and the exit code is 1 (`--allow-missing` → 0).
+
+See [docs/trace-relations.md](docs/trace-relations.md) for the full definition.
 
 ### List Mode
 
@@ -311,19 +338,19 @@ The report analyzes 4 dimensions:
 
 ### Common Options (all modes)
 
-| Option               | Description                                                    | Default | Values                     |
-| -------------------- | -------------------------------------------------------------- | ------- | -------------------------- |
-| `<input-path...>`    | Directories or files to scan (one or more, dirs recursively)   | -       | Paths (e.g. `.specs src`)  |
-| `--ext`              | File extensions to scan, comma-separated                       | `md`    | e.g. `md,rs,ts,tsx,mjs,sh` |
-| `--skip-frontmatter` | Ignore IDs in the frontmatter (leading `---` block); body only | `false` | Boolean                    |
+| Option               | Description                                                        | Default | Values                     |
+| -------------------- | ------------------------------------------------------------------ | ------- | -------------------------- |
+| `<input-path...>`    | Directories or files to scan (one or more, dirs recursively)       | -       | Paths (e.g. `.specs src`)  |
+| `--ext`              | File extensions to scan, comma-separated                           | `md`    | e.g. `md,rs,ts,tsx,mjs,sh` |
+| `--skip-frontmatter` | Read the body only, ignoring the frontmatter (leading `---` block) | `false` | Boolean                    |
 
 A path that does not exist is a `PathNotFound` error (exit code 3) naming that path. Files given
 explicitly are scanned regardless of `--ext`.
 
 Frontmatter is a block at the very start of a file that opens with a `---` line and
 closes with the next `---` or `...` line (an unclosed block is not frontmatter).
-With `--skip-frontmatter`, IDs inside it are not extracted; line numbers of body IDs
-stay those of the original file.
+With `--skip-frontmatter`, IDs (and, in graph mode, relations) inside it are not
+extracted; line numbers of body IDs stay those of the original file.
 
 ### Cluster Mode Options
 
@@ -352,15 +379,16 @@ stay those of the original file.
 
 ### Extract Mode Options (`/extract`)
 
-| Option       | Description                       | Default    | Values                       |
-| ------------ | --------------------------------- | ---------- | ---------------------------- |
-| `--ids`      | Space-separated IDs (REQUIRED)    | -          | String                       |
-| `--ids-file` | Path to file with IDs             | -          | File path                    |
-| `--output`   | Output file path                  | STDOUT     | File path                    |
-| `--before`   | Lines before target               | `3`        | Number (max: 50)             |
-| `--after`    | Lines after target                | `10`       | Number (max: 50)             |
-| `--format`   | Output format                     | `markdown` | `markdown`, `json`, `simple` |
-| `--versions` | Resolution of IDs without version | `latest`   | `latest`, `all`              |
+| Option            | Description                             | Default    | Values                       |
+| ----------------- | --------------------------------------- | ---------- | ---------------------------- |
+| `--ids`           | Space-separated IDs (REQUIRED)          | -          | String                       |
+| `--ids-file`      | Path to file with IDs                   | -          | File path                    |
+| `--output`        | Output file path                        | STDOUT     | File path                    |
+| `--before`        | Lines before target                     | `3`        | Number (max: 50)             |
+| `--after`         | Lines after target                      | `10`       | Number (max: 50)             |
+| `--format`        | Output format                           | `markdown` | `markdown`, `json`, `simple` |
+| `--versions`      | Resolution of IDs without version       | `latest`   | `latest`, `all`              |
+| `--allow-missing` | Exit 0 even when some IDs are not found | `false`    | Boolean                      |
 
 `--ids` accepts IDs with or without a version. With a version
 (`req:apikey:security-4f7b2e#20251111a`) the match is exact. Without a version
@@ -369,18 +397,20 @@ version, newest first (`all`). Versions are compared with digit runs as numbers.
 
 ### Graph Mode Options (`/graph`)
 
-| Option             | Description                 | Default             | Values                                                |
-| ------------------ | --------------------------- | ------------------- | ----------------------------------------------------- |
-| `--output`         | Output HTML file path       | `tmp/graph-3d.html` | File path                                             |
-| `--distance`       | Distance calculation method | `structural`        | `levenshtein`, `jaro-winkler`, `cosine`, `structural` |
-| `--algorithm`      | Clustering algorithm        | `hierarchical`      | `hierarchical`, `kmeans`, `dbscan`                    |
-| `--threshold`      | Clustering threshold        | `0.3`               | Number                                                |
-| `--edge-threshold` | Edge display threshold      | `0.5`               | Number (0-1)                                          |
-| `--color-by`       | Node coloring mode          | `cluster`           | `cluster`, `scope`, `level`                           |
-| `--layout`         | Graph layout algorithm      | `force`             | `force`, `mds`                                        |
-| `--k`              | K-Means cluster count       | `0` (auto)          | Number                                                |
-| `--epsilon`        | DBSCAN neighborhood radius  | `0.3`               | Number                                                |
-| `--min-points`     | DBSCAN minimum neighbors    | `2`                 | Number                                                |
+| Option             | Description                                    | Default             | Values                                                |
+| ------------------ | ---------------------------------------------- | ------------------- | ----------------------------------------------------- |
+| `--output`         | Output HTML file path                          | `tmp/graph-3d.html` | File path                                             |
+| `--distance`       | Distance calculation method                    | `structural`        | `levenshtein`, `jaro-winkler`, `cosine`, `structural` |
+| `--algorithm`      | Clustering algorithm                           | `hierarchical`      | `hierarchical`, `kmeans`, `dbscan`                    |
+| `--threshold`      | Clustering threshold                           | `0.3`               | Number                                                |
+| `--edge-threshold` | Edge display threshold                         | `0.5`               | Number (0-1)                                          |
+| `--color-by`       | Node coloring mode                             | `cluster`           | `cluster`, `scope`, `level`                           |
+| `--layout`         | Graph layout algorithm                         | `force`             | `force`, `mds`                                        |
+| `--k`              | K-Means cluster count                          | `0` (auto)          | Number                                                |
+| `--epsilon`        | DBSCAN neighborhood radius                     | `0.3`               | Number                                                |
+| `--min-points`     | DBSCAN minimum neighbors                       | `2`                 | Number                                                |
+| `--versions`       | Resolution of relation targets without version | `latest`            | `latest`, `all`                                       |
+| `--allow-missing`  | Exit 0 even with broken relation links         | `false`             | Boolean                                               |
 
 ### List Mode Options (`/list`)
 
@@ -411,15 +441,15 @@ above are failures. Every failure is a `TraceabilityError` with a typed
 `detail.kind`; the CLI prints `Error [<kind>]: <message>` to STDERR and exits with
 the code of the kind's category.
 
-| Exit | Meaning    | Details                                                                    |
-| ---- | ---------- | -------------------------------------------------------------------------- |
-| 0    | complete   | Success (everything requested was found)                                   |
-| 1    | partial    | `/extract`: some requested IDs were not found (`--allow-missing` → 0)      |
-| 2    | usage      | `MissingArgument`, `EmptyIdList`, `InvalidOptionValue`, `InvalidParameter` |
-| 3    | input      | `PathNotFound`, `PathAccessDenied`, `ScanFailed`, `FileReadFailed`         |
-| 4    | output     | `FileWriteFailed`                                                          |
-| 5    | external   | `ExternalCommandFailed`                                                    |
-| 70   | unexpected | Anything that is not a `TraceabilityError` (sysexits EX_SOFTWARE)          |
+| Exit | Meaning    | Details                                                                                                |
+| ---- | ---------- | ------------------------------------------------------------------------------------------------------ |
+| 0    | complete   | Success (everything requested was found)                                                               |
+| 1    | partial    | `/extract`: some requested IDs were not found; `/graph`: broken relation links (`--allow-missing` → 0) |
+| 2    | usage      | `MissingArgument`, `EmptyIdList`, `InvalidOptionValue`, `InvalidParameter`                             |
+| 3    | input      | `PathNotFound`, `PathAccessDenied`, `ScanFailed`, `FileReadFailed`                                     |
+| 4    | output     | `FileWriteFailed`                                                                                      |
+| 5    | external   | `ExternalCommandFailed`                                                                                |
+| 70   | unexpected | Anything that is not a `TraceabilityError` (sysexits EX_SOFTWARE)                                      |
 
 With exit 1, the found IDs are still printed. Modes return a `ModeOutcome`
 (`{ status: "complete" }` or `{ status: "partial", missing }`).
@@ -564,6 +594,7 @@ deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids --help
 │   ├── requirements.md      # Requirements
 │   ├── architecture.md      # Architecture design
 │   ├── graph-visualization.md  # Graph mode design
+│   ├── trace-relations.md   # derived_from / trace_to definition
 │   ├── analyze-report.md    # Analyze mode design
 │   └── list-mode.md         # List mode design
 ├── tmp/                     # Output directory (gitignored)
@@ -571,6 +602,7 @@ deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids --help
     ├── cli/                 # CLI layer
     │   ├── args.ts          # Pure argument parsers → typed mode options
     │   ├── runner.ts        # Help, run, error → exit code
+    │   ├── help.ts          # Help text of shared options
     │   └── *-factory.ts     # Distance / clustering factories
     ├── core/                # Core functionality
     │   ├── types.ts         # Result type definitions
@@ -580,7 +612,11 @@ deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids --help
     │   ├── events.ts        # ModeEvent / ModeIO (progress reporting)
     │   ├── io.ts            # File I/O with typed errors
     │   ├── scanner.ts       # File scanner (paths, extensions)
+    │   ├── relations.ts     # Relation kinds, declarations, issues
     │   └── extractor.ts     # ID extractor
+    ├── relations/           # derived_from / trace_to
+    │   ├── extract.ts       # Read declarations from YAML regions
+    │   └── resolve.ts       # Resolve targets, find broken links
     ├── distance/            # Distance calculation
     │   ├── calculator.ts    # Interface & matrix creation
     │   ├── levenshtein.ts   # Levenshtein distance
