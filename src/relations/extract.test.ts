@@ -1,6 +1,6 @@
 import { assertEquals } from "@std/assert";
 import { RELATION_KINDS } from "../core/relations.ts";
-import { extractRelationsFromText, yamlRegions } from "./extract.ts";
+import { extractRelationsFromText, stripYamlComment, yamlRegions } from "./extract.ts";
 
 const ITEMS = `---
 title: Doc
@@ -22,9 +22,10 @@ traceability:
 # Body
 `;
 
-Deno.test("extractRelations - items in frontmatter: source is id.full, values keep their lines", () => {
+Deno.test("extractRelations - invalid YAML falls back to line reading, with InvalidYaml", () => {
   const result = extractRelationsFromText(ITEMS, "a.md");
-  assertEquals(result.issues, []);
+  // the description starting with a backquote is not valid YAML
+  assertEquals(result.issues.map((i) => [i.kind, i.lineNumber]), [["InvalidYaml", 7]]);
   assertEquals(
     result.declarations.map((d) => [d.kind, d.source, d.target, d.lineNumber]),
     [
@@ -77,7 +78,7 @@ Deno.test("extractRelations - empty relations need no source", () => {
   const text = "---\ntype: requirements\nderived_from: []\ntrace_to:\n---\n";
   assertEquals(extractRelationsFromText(text, "a.md"), {
     declarations: [],
-    referenceLines: [{ filePath: "a.md", lineNumber: 3 }],
+    referenceLines: [{ filePath: "a.md", lineNumber: 3 }, { filePath: "a.md", lineNumber: 4 }],
     issues: [],
   });
 });
@@ -132,4 +133,150 @@ Deno.test("extractRelations - every relation kind is read, inline or as a list",
       ]);
     }
   }
+});
+
+// ── YAML comments and value forms (Issue #17) ──
+
+Deno.test("stripYamlComment - # after whitespace or at the start, outside quotes", () => {
+  const cases: [string, string][] = [
+    ["", ""],
+    ["# comment", ""],
+    ["   # comment", ""],
+    ["[]   # comment", "[]"],
+    ["req:x:z-4d5e6f#20260101", "req:x:z-4d5e6f#20260101"],
+    ["req:x:z-4d5e6f#20260101  # note", "req:x:z-4d5e6f#20260101"],
+    ["req:x:z-4d5e6f#v1\t# tab before", "req:x:z-4d5e6f#v1"],
+    ["[req:a:b-a1b2c3#v1, req:a:c-d4e5f6] # two", "[req:a:b-a1b2c3#v1, req:a:c-d4e5f6]"],
+    ['"a # b"  # c', '"a # b"'],
+    ["'a # b' # c", "'a # b'"],
+    ["'it''s # x' # c", "'it''s # x'"],
+    ['"esc \\" # x" # c', '"esc \\" # x"'],
+    ["issue#12", "issue#12"],
+    ["~ # null", "~"],
+  ];
+  for (const [value, expected] of cases) {
+    assertEquals([value, stripYamlComment(value)], [value, expected]);
+  }
+});
+
+/** Declarations `[kind, source, target, line]` and issue kinds of one frontmatter */
+function read(body: string): { declared: [string, string, string, number][]; issues: string[] } {
+  const result = extractRelationsFromText(`---\n${body}\n---\n`, "a.md");
+  return {
+    declared: result.declarations.map((d) => [d.kind, d.source, d.target, d.lineNumber]),
+    issues: result.issues.map((i) => i.kind),
+  };
+}
+
+const SRC = "us:x:y-1a2b3c#20260101";
+const DST = "req:x:z-4d5e6f#20260101";
+const DST2 = "req:x:w-7g8h9i";
+
+Deno.test("extractRelations - Issue #17 reproduction: a comment on the key line keeps the list", () => {
+  const text = `---
+traceability:
+  - id:
+      full: ${SRC}
+    derived_from:        # comment
+      - ${DST}
+---
+# z \`${DST}\`
+`;
+  const result = extractRelationsFromText(text, "a.md");
+  assertEquals(result.issues, []);
+  assertEquals(result.declarations.map((d) => [d.kind, d.source, d.target, d.lineNumber]), [
+    ["derived_from", SRC, DST, 6],
+  ]);
+});
+
+Deno.test("extractRelations - value forms with comments, blanks and quotes", () => {
+  const cases: [string, string, [string, string, string, number][], string[]][] = [
+    ["empty flow list with a comment", `id: ${SRC}\ntrace_to: []   # comment`, [], []],
+    ["key only with a comment, nothing under it", `id: ${SRC}\ntrace_to:   # none yet`, [], []],
+    ["null with a comment", `id: ${SRC}\ntrace_to: ~ # none`, [], []],
+    [
+      "comment on the key and on every item",
+      `id: ${SRC}\ntrace_to: # targets\n  - ${DST}  # first\n  - ${DST2} # second`,
+      [["trace_to", SRC, DST, 4], ["trace_to", SRC, DST2, 5]],
+      [],
+    ],
+    [
+      "comment lines and blank lines inside the list",
+      `id: ${SRC}\ntrace_to:\n  # heading\n  - ${DST}\n\n  # more\n  - ${DST2}`,
+      [["trace_to", SRC, DST, 5], ["trace_to", SRC, DST2, 8]],
+      [],
+    ],
+    [
+      "list items at the same indentation as the key",
+      `id: ${SRC}\nderived_from: # c\n- ${DST}\ntrace_to:\n- ${DST2}`,
+      [["derived_from", SRC, DST, 4], ["trace_to", SRC, DST2, 6]],
+      [],
+    ],
+    [
+      "flow list with a comment",
+      `id: ${SRC}\ntrace_to: [${DST}, "${DST2}"]  # two`,
+      [["trace_to", SRC, DST, 3], ["trace_to", SRC, DST2, 3]],
+      [],
+    ],
+    [
+      "quoted values with # inside quotes",
+      `id: ${SRC}\ntrace_to:\n  - "${DST}" # c\n  - '${DST2}'`,
+      [["trace_to", SRC, DST, 4], ["trace_to", SRC, DST2, 5]],
+      [],
+    ],
+    [
+      "own id with a comment",
+      `id: ${SRC}   # own id\nderived_from:\n  - ${DST}`,
+      [["derived_from", SRC, DST, 4]],
+      [],
+    ],
+    [
+      "nested full with a comment",
+      `- id: # own\n    full: ${SRC}  # full id\n  derived_from:  # from\n    - ${DST}`,
+      [["derived_from", SRC, DST, 5]],
+      [],
+    ],
+    [
+      "a comment-only item is not a target",
+      `id: ${SRC}\ntrace_to:\n  - # to be decided\n  - ${DST}`,
+      [["trace_to", SRC, DST, 5]],
+      [],
+    ],
+    [
+      "a real non-ID value is still InvalidTarget",
+      `id: ${SRC}\ntrace_to:\n  - us:stock:reliability # no hash`,
+      [],
+      ["InvalidTarget"],
+    ],
+    [
+      "a comment does not stand in for an own ID",
+      `trace_to: # c\n  - ${DST}`,
+      [],
+      ["SourceMissing"],
+    ],
+  ];
+  for (const [name, body, declared, issues] of cases) {
+    assertEquals([name, read(body)], [name, { declared, issues }]);
+  }
+});
+
+Deno.test("extractRelations - InvalidTarget value is reported without its comment", () => {
+  const result = extractRelationsFromText(
+    `---\nid: ${SRC}\ntrace_to:\n  - "not an id # really"  # note\n---\n`,
+    "a.md",
+  );
+  assertEquals(result.issues.map((i) => i.kind === "InvalidTarget" && i.value), [
+    "not an id # really",
+  ]);
+});
+
+Deno.test("extractRelations - CRLF lines and fenced blocks read comments the same way", () => {
+  const crlf = `---\r\nid: ${SRC}\r\nderived_from:  # c\r\n  - ${DST}\r\n---\r\n`;
+  assertEquals(extractRelationsFromText(crlf, "a.md").declarations.map((d) => d.target), [DST]);
+  const fenced = `# Doc\n\n\`\`\`yaml\nid: ${SRC} # c\ntrace_to:   # c\n  - ${DST}\n\`\`\`\n`;
+  const result = extractRelationsFromText(fenced, "a.md", "skip");
+  assertEquals([result.issues, result.declarations.map((d) => [d.target, d.lineNumber])], [
+    [],
+    [[DST, 6]],
+  ]);
 });

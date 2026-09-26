@@ -37,7 +37,10 @@ src/
 │   ├── resolver.ts           # 要求IDの解決（バージョン省略IDの latest / all）
 │   └── loader.ts             # ID一覧の読み込み（IdsSource）
 ├── relations/
-│   ├── extract.ts            # 関係の抽出（YAML 領域・起点・値）
+│   ├── extract.ts            # 関係の抽出（領域ごとに YAML パーサ / 行単位を選ぶ）
+│   ├── region.ts             # YAML 領域（frontmatter・fenced block）と YAML コメント
+│   ├── yaml.ts               # @std/yaml で解析し、行番号を領域内で特定
+│   ├── lines.ts              # 行単位の読み取り（YAML として不正な領域の代替）
 │   ├── resolve.ts            # 解決（版・存在）と broken の理由（NodeMissing / VersionMissing）
 │   └── select.ts             # 要求 ID と向き（in / out）による宣言の選択
 ├── list/
