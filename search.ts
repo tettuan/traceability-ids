@@ -64,7 +64,7 @@ EXAMPLES:
 export const command: CommandSpec<SearchModeOptions> = {
   usage: USAGE,
   parse: parseSearchArgs,
-  run: (options) => runSearchMode(options),
+  run: (options, io) => runSearchMode(options, io),
 };
 
 if (import.meta.main) {

@@ -1,7 +1,10 @@
 import { assert, assertEquals, assertStringIncludes } from "@std/assert";
 import { describeEvent } from "./events.ts";
 import {
+  type BrokenReason,
+  type BrokenRelation,
   describeBrokenRelation,
+  describeDeclaration,
   describeRelationIssue,
   isRelationKind,
   positionKey,
@@ -48,10 +51,24 @@ Deno.test("relations - every issue kind is described with its position and relat
   }
 });
 
-Deno.test("relations - broken relation line names source, kind and target", () => {
-  const text = describeBrokenRelation(DECLARATION);
-  for (const part of [positionKey(AT), DECLARATION.source, DECLARATION.kind, DECLARATION.target]) {
-    assertStringIncludes(text, part);
+/** One sample per broken reason; the mapped type makes a missing kind a compile error */
+const REASONS: { [K in BrokenReason["kind"]]: [Extract<BrokenReason, { kind: K }>, string] } = {
+  NodeMissing: [{ kind: "NodeMissing" }, "(node not found)"],
+  VersionMissing: [
+    { kind: "VersionMissing", existing: ["req:a:y-def#v3", "req:a:y-def"] },
+    "(version not found: node exists with v3, no version)",
+  ],
+};
+
+Deno.test("relations - broken relation line names position, source, kind, target and reason", () => {
+  for (const [reason, reasonText] of Object.values(REASONS)) {
+    const relation: BrokenRelation = { ...DECLARATION, reason };
+    const text = describeBrokenRelation(relation);
+    assertEquals(text, `${describeDeclaration(DECLARATION)} ${reasonText}`);
+    assertEquals(
+      describeDeclaration(DECLARATION),
+      "docs/a.md:7: req:a:x-abc#v1 -trace_to-> req:a:y-def#v1",
+    );
+    assertStringIncludes(describeEvent({ type: "BrokenRelationFound", relation }), text);
   }
-  assertStringIncludes(describeEvent({ type: "BrokenRelationFound", relation: DECLARATION }), text);
 });

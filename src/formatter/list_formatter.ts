@@ -51,6 +51,38 @@ export function formatListAsCsv(index: IdIndex): string {
 }
 
 /**
+ * Format IdIndex as occurrence counts per file: `{count} {filePath}`, by file path.
+ *
+ * Occurrences of every entry are added up (like `grep -c` over several IDs);
+ * use the `count` format for counts per ID.
+ *
+ * @param index - The ID index to format
+ * @returns One line per file holding an occurrence
+ */
+export function formatListAsLocations(index: IdIndex): string {
+  const counts = new Map<string, number>();
+  for (const entry of index.entries) {
+    for (const { filePath } of entry.occurrences) {
+      counts.set(filePath, (counts.get(filePath) ?? 0) + 1);
+    }
+  }
+  return [...counts.entries()]
+    .sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)
+    .map(([filePath, count]) => `${count} ${filePath}\n`)
+    .join("");
+}
+
+/**
+ * Format IdIndex as occurrence counts per ID: `{count} {fullId}`, in index order.
+ *
+ * @param index - The ID index to format
+ * @returns One line per entry
+ */
+export function formatListAsCount(index: IdIndex): string {
+  return index.entries.map((e) => `${e.occurrences.length} ${e.fullId}\n`).join("");
+}
+
+/**
  * Format IdIndex in the specified format.
  *
  * @param index - The ID index to format
@@ -68,6 +100,10 @@ export function formatListResult(
       return formatListAsSimple(index);
     case "csv":
       return formatListAsCsv(index);
+    case "locations":
+      return formatListAsLocations(index);
+    case "count":
+      return formatListAsCount(index);
     default:
       return assertNever(format);
   }

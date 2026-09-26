@@ -9,6 +9,7 @@ import { runClusterMode } from "./cluster.ts";
 import { type ExtractModeOptions, runExtractMode } from "./extract.ts";
 import { type GraphModeOptions, runGraphMode } from "./graph.ts";
 import { runListMode } from "./list.ts";
+import { runRelationsMode } from "./relations.ts";
 import { runSearchMode } from "./search.ts";
 
 const DOCS = {
@@ -526,5 +527,81 @@ defineScenario({
   then: {
     events: [{ type: "ScanStarted", frontmatter: "include" }, { type: "IdsExtracted", total: 2 }],
     outcome: { kind: "success", result: { status: "complete" } },
+  },
+});
+
+// ── relations ──
+
+const RELATION_DOCS = {
+  "docs/req.md": "# req:auth:login-a1b2c3#v1\n",
+  "docs/dsg.md": `---
+id: dsg:auth:session-d4e5f6#v1
+derived_from:
+  - req:auth:login-a1b2c3
+trace_to:
+  - req:auth:login-a1b2c3#v0
+---
+`,
+} as const;
+
+defineScenario({
+  name: "relations: requested ID → resolve → select → print",
+  given: RELATION_DOCS,
+  when: (ctx) =>
+    runRelationsMode({
+      inputDir: ctx.path("docs"),
+      ids: { kind: "inline", text: "req:auth:login-a1b2c3" },
+      direction: "in",
+      kinds: ["derived_from", "trace_to"],
+      status: "resolved",
+      format: "simple",
+    }, ctx.io),
+  then: {
+    order: "exact",
+    events: [
+      { type: "ModeStarted", mode: "relations" },
+      { type: "TargetsLoaded", count: 1 },
+      { type: "ScanStarted" },
+      { type: "FilesScanned", count: 2 },
+      { type: "IdsExtracted" },
+      { type: "RelationsResolved", declared: 2, edges: 1, broken: 1 },
+      { type: "RelationsSelected", rows: 1, notFound: 0 },
+      { type: "OutputPrinted" },
+    ],
+    outcome: { kind: "success", result: { status: "complete" } },
+    verify: (ctx) => {
+      assertStringIncludes(ctx.io.printed.join(""), "-derived_from-> req:auth:login-a1b2c3");
+    },
+  },
+});
+
+defineScenario({
+  name: "list: --ids selects entries and reports the IDs not found as partial",
+  given: DOCS,
+  when: (ctx) =>
+    runListMode({
+      inputDir: ctx.path("docs"),
+      format: "count",
+      sort: "fullId",
+      batchSize: 0,
+      ids: { kind: "inline", text: "req:auth:login-a1b2c3 req:none:x-000000" },
+    }, ctx.io),
+  then: {
+    events: [
+      { type: "TargetsLoaded", count: 2 },
+      { type: "IdsExtracted" },
+      { type: "IdsSelected", selected: 2, notFound: 1 },
+      { type: "OutputPrinted" },
+    ],
+    outcome: {
+      kind: "success",
+      result: { status: "partial", missing: ["req:none:x-000000"] },
+    },
+    verify: (ctx) => {
+      assertEquals(
+        ctx.io.printed.join(""),
+        "1 req:auth:login-a1b2c3\n1 req:auth:login-a1b2c3#20260810\n",
+      );
+    },
   },
 });

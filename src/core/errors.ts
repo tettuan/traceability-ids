@@ -15,6 +15,8 @@ export type ErrorDetail =
   | { kind: "MissingArgument"; argument: string }
   /** The ID list to look up is empty (`source`: `--ids` or the ids file path) */
   | { kind: "EmptyIdList"; source: string }
+  /** A CLI option that the command does not accept */
+  | { kind: "UnknownOption"; option: string }
   /** A CLI option value is not one of the accepted values or not parsable */
   | { kind: "InvalidOptionValue"; option: string; value: string; expected: string }
   /** A numeric parameter of an algorithm is out of its valid range */
@@ -45,6 +47,7 @@ export type ErrorCategory = "usage" | "input" | "output" | "external";
 export const ERROR_CATEGORIES: { readonly [K in ErrorKind]: ErrorCategory } = {
   MissingArgument: "usage",
   EmptyIdList: "usage",
+  UnknownOption: "usage",
   InvalidOptionValue: "usage",
   InvalidParameter: "usage",
   PathNotFound: "input",
@@ -118,6 +121,8 @@ export function describeError(detail: ErrorDetail): string {
       return `Missing required argument: ${detail.argument}`;
     case "EmptyIdList":
       return `No IDs given in ${detail.source}`;
+    case "UnknownOption":
+      return `Unknown option: ${detail.option}`;
     case "InvalidOptionValue":
       return `Invalid ${detail.option} value: "${detail.value}" (expected ${detail.expected})`;
     case "InvalidParameter":

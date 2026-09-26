@@ -13,7 +13,10 @@ flowchart LR
     A["input-path... + --ext"] --> B[scanFiles]
     B --> C[extractIds]
     C --> D["rawIds (all occurrences)"]
-    D --> E[aggregateOccurrences]
+    D --> S{"--ids?"}
+    S -->|Y| T["selectIds (--versions)"]
+    S -->|N| E
+    T --> E[aggregateOccurrences]
     E --> F[IdIndex]
     F --> G{batch?}
     G -->|N| H[formatListResult]
@@ -79,6 +82,46 @@ FullId,Level,Scope,Semantic,Hash,Version,OccurrenceCount,FilePath,LineNumber
 "req:apikey:security-4f7b2e#20251111a","req","apikey","security","4f7b2e","20251111a",2,"/docs/spec.md",15
 ```
 
+### Locations
+
+`--format locations`: occurrences per file, `{count} {filePath}`, ordered by file path.
+Occurrences of every selected entry are added up (like `grep -c` over several IDs):
+
+```
+1 docs/a.md
+4 docs/b.md
+```
+
+### Count
+
+`--format count`: occurrences per entry, `{count} {fullId}`, in index (`--sort`) order:
+
+```
+3 req:auth:login-flow-1a2b3c
+1 req:auth:login-flow-1a2b3c#20251201
+1 req:auth:login-flow-1a2b3c#20260101
+```
+
+## Selecting IDs (`--ids`, `--ids-file`)
+
+With `--ids` (space-separated) or `--ids-file` (one per line), only the entries the
+requested IDs resolve to are listed, with the same rules as extract mode
+(`selectIds` → `resolveTargetId`):
+
+- With a version (`…#20260101`): that full ID only
+- Without a version: `--versions latest` (default) keeps the newest version,
+  `--versions all` every version; occurrences written without a version are
+  included in both
+
+A requested ID that matches nothing makes the result `partial` (exit code 1;
+`--allow-missing` → 0); the found ones are still listed. Progress reports
+`TargetsLoaded` and `IdsSelected`.
+
+```bash
+# Issue #14: where req:auth:login-flow-1a2b3c occurs, whatever the version
+list.ts --ids req:auth:login-flow-1a2b3c --versions all --format locations ./docs
+```
+
 ## Sort Options
 
 | Key      | Description                       |
@@ -119,18 +162,20 @@ Progress is reported as typed `ModeEvent`s through the injected `ModeIO`
 result to **STDOUT**. Piping stdout (e.g. `list.ts ./docs | jq`) therefore
 receives only the index.
 
-Event order: `ModeStarted → ScanStarted → FilesScanned → IdsExtracted →
-OutputWritten | OutputPrinted` (one output event per batch file).
+Event order: `ModeStarted → TargetsLoaded? → ScanStarted → FilesScanned →
+IdsExtracted → IdsSelected? → OutputWritten | OutputPrinted` (one output event per
+batch file; `TargetsLoaded` and `IdsSelected` only with `--ids` / `--ids-file`).
 
 ## Module Structure
 
 | Module                            | Responsibility                                               |
 | --------------------------------- | ------------------------------------------------------------ |
 | `src/list/aggregator.ts`          | Group rawIds by fullId, sort, batch split                    |
-| `src/formatter/list_formatter.ts` | Format IdIndex as JSON/simple/CSV                            |
+| `src/formatter/list_formatter.ts` | Format IdIndex as JSON/simple/CSV/locations/count            |
+| `src/extract/resolver.ts`         | `selectIds`: requested IDs → full IDs, and those not found   |
 | `src/modes/pipeline.ts`           | Shared scan/extract (`collectIds`) and output (`emitResult`) |
 | `src/modes/list.ts`               | Orchestrate scan → extract → aggregate → format → output     |
-| `src/cli/args.ts`                 | `parseListArgs`: argv → typed `ListModeOptions`              |
+| `src/cli/args.ts`                 | `parseListArgs`: argv → typed `ListCommandOptions`           |
 | `list.ts`                         | CLI entry point (usage + `CommandSpec`)                      |
 
 ## CLI Options
@@ -138,13 +183,22 @@ OutputWritten | OutputPrinted` (one output event per batch file).
 ```
 deno run --allow-read --allow-write list.ts [options] <input-path...>
 
---format <json|simple|csv>              Output format (default: json)
+--format <json|simple|csv|locations|count>  Output format (default: json)
+--ids <string>                          Only these IDs (space-separated)
+--ids-file <path>                       Only the IDs in a file (one per line)
+--versions <latest|all>                 Resolution of --ids without a version (default: latest)
+--allow-missing                         Exit 0 even when some requested IDs are not found
 --output <file>                         Output file (default: stdout)
 --sort <fullId|scope|level|count>       Sort order (default: fullId)
 --batch-size <number>                   Entries per batch (default: 0 = no split, requires --output)
 --ext <list>                            Extensions to scan, comma-separated (default: md)
 --skip-frontmatter                      Ignore IDs in frontmatter (body only)
+--hash-pattern <regex>                  Hash form of the last segment (default: 6 lowercase alnum with a digit)
+--require-hash                          Exclude IDs without a hash
 ```
+
+An option the command does not accept (e.g. `--unknown-flag`) fails with
+`UnknownOption` (exit code 2) instead of being ignored.
 
 Invalid values (e.g. `--sort name`, `--batch-size -1`) fail with
 `InvalidOptionValue` (exit code 2); a missing input path fails with
@@ -152,11 +206,11 @@ Invalid values (e.g. `--sort name`, `--batch-size -1`) fail with
 
 ## Comparison with Other Modes
 
-| Feature             | list | cluster | extract                | analyze            |
-| ------------------- | ---- | ------- | ---------------------- | ------------------ |
-| All IDs             | yes  | yes     | no (--ids required)    | yes                |
-| Occurrences grouped | yes  | no      | yes (per requested ID) | partial            |
-| JSON output         | yes  | yes     | yes                    | no (Markdown only) |
-| Batch splitting     | yes  | no      | no                     | no                 |
-| Clustering          | no   | yes     | no                     | yes                |
-| Context lines       | no   | no      | yes                    | no                 |
+| Feature             | list             | cluster | extract                | analyze            |
+| ------------------- | ---------------- | ------- | ---------------------- | ------------------ |
+| All IDs             | yes (or `--ids`) | yes     | no (--ids required)    | yes                |
+| Occurrences grouped | yes              | no      | yes (per requested ID) | partial            |
+| JSON output         | yes              | yes     | yes                    | no (Markdown only) |
+| Batch splitting     | yes              | no      | no                     | no                 |
+| Clustering          | no               | yes     | no                     | yes                |
+| Context lines       | no               | no      | yes                    | no                 |

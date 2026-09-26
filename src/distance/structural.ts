@@ -1,4 +1,4 @@
-import { parseId } from "../core/id.ts";
+import { DEFAULT_HASH_RULE, type HashRule, parseId } from "../core/id.ts";
 import type { DistanceCalculator } from "./calculator.ts";
 
 /**
@@ -11,6 +11,7 @@ export class StructuralDistance implements DistanceCalculator {
   /**
    * コンストラクタ
    * @param weights 各要素の重み
+   * @param hashRule hash の形式（抽出と同じ規則を渡す）
    */
   constructor(
     private weights: {
@@ -26,6 +27,7 @@ export class StructuralDistance implements DistanceCalculator {
       hash: 0.1,
       version: 0.1,
     },
+    private hashRule: HashRule = DEFAULT_HASH_RULE,
   ) {
     // 重みの合計が1になるように正規化
     const totalWeight = Object.values(weights).reduce((sum, w) => sum + w, 0);
@@ -49,8 +51,8 @@ export class StructuralDistance implements DistanceCalculator {
    */
   calculate(a: string, b: string): number {
     // IDをパースして各要素を取得
-    const partsA = parseId(a);
-    const partsB = parseId(b);
+    const partsA = parseId(a, this.hashRule);
+    const partsB = parseId(b, this.hashRule);
 
     // パースに失敗した場合はレーベンシュタイン距離を使用
     if (!partsA || !partsB) {

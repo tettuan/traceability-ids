@@ -1,7 +1,9 @@
 import { assertEquals } from "@std/assert";
 import {
+  formatListAsCount,
   formatListAsCsv,
   formatListAsJson,
+  formatListAsLocations,
   formatListAsSimple,
   formatListResult,
 } from "./list_formatter.ts";
@@ -78,4 +80,15 @@ Deno.test("formatListAsJson - empty index", () => {
   const json = formatListAsJson(empty);
   const parsed = JSON.parse(json);
   assertEquals(parsed.entries.length, 0);
+});
+
+Deno.test("formatListAsLocations - occurrences of all entries added up per file", () => {
+  assertEquals(formatListAsLocations(index), "2 a.md\n1 b.md\n");
+  assertEquals(formatListResult(index, "locations"), formatListAsLocations(index));
+  assertEquals(formatListAsLocations({ ...index, entries: [] }), "");
+});
+
+Deno.test("formatListAsCount - occurrences per ID in index order", () => {
+  assertEquals(formatListAsCount(index), "2 req:auth:login-aaa#v1\n1 req:api:key-bbb#v1\n");
+  assertEquals(formatListResult(index, "count"), formatListAsCount(index));
 });

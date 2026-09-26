@@ -9,6 +9,7 @@
  */
 
 import { assertNever } from "./errors.ts";
+import { versionOf } from "./id.ts";
 import type { NonEmptyArray } from "./nonempty.ts";
 
 /** Relation fields */
@@ -72,6 +73,42 @@ export type RelationIssue =
   })
   | (SourcePosition & { kind: "InvalidTarget"; relation: RelationKind; value: string });
 
+/**
+ * Why a declared target was not found
+ *
+ * - `NodeMissing`: no item has the target's unique key (a broken link)
+ * - `VersionMissing`: the target names a version, and items with its unique key exist,
+ *   but none with that version. `existing` are their full IDs, newest first
+ *   (the unique key itself when the item is written without a version)
+ */
+export type BrokenReason =
+  | { kind: "NodeMissing" }
+  | { kind: "VersionMissing"; existing: NonEmptyArray<string> };
+
+/** A declaration whose target was not found, with the reason */
+export interface BrokenRelation extends RelationDeclaration {
+  /** Why the target was not found */
+  reason: BrokenReason;
+}
+
+/** What a declaration resolved to */
+export type RelationResolution =
+  /** Full IDs its target resolved to */
+  | { status: "resolved"; targets: NonEmptyArray<string> }
+  /** Its target was not found */
+  | { status: "broken"; reason: BrokenReason };
+
+/** Status of a resolution: `resolved` or `broken` */
+export type ResolutionStatus = RelationResolution["status"];
+
+/** A declaration and what it resolved to */
+export interface ResolvedDeclaration {
+  /** The declaration */
+  declaration: RelationDeclaration;
+  /** What its target resolved to */
+  resolution: RelationResolution;
+}
+
 /** Relations declared in the input, and what could not be read as relations */
 export interface ExtractedRelations {
   /** Declarations, in file and document order */
@@ -86,8 +123,8 @@ export interface ExtractedRelations {
 export interface ResolvedRelations {
   /** Edges, without duplicates */
   edges: RelationEdge[];
-  /** Declarations whose target is not found anywhere but in relation values (broken links) */
-  broken: RelationDeclaration[];
+  /** Declarations whose target is not found anywhere but in relation values */
+  broken: BrokenRelation[];
 }
 
 /** `path:line` of a position */
@@ -111,8 +148,33 @@ export function describeRelationIssue(issue: RelationIssue): string {
 }
 
 /**
- * Line of a broken relation
+ * Line of a declared relation: `path:line: source -kind-> target`
  */
-export function describeBrokenRelation(relation: RelationDeclaration): string {
-  return `${positionKey(relation)}: ${relation.source} -${relation.kind}-> ${relation.target}`;
+export function describeDeclaration(declaration: RelationDeclaration): string {
+  return `${
+    positionKey(declaration)
+  }: ${declaration.source} -${declaration.kind}-> ${declaration.target}`;
+}
+
+/**
+ * Text of a broken reason, e.g. `version not found: node exists with 20260101`
+ */
+export function describeBrokenReason(reason: BrokenReason): string {
+  switch (reason.kind) {
+    case "NodeMissing":
+      return "node not found";
+    case "VersionMissing":
+      return `version not found: node exists with ${
+        reason.existing.map((id) => versionOf(id) || "no version").join(", ")
+      }`;
+    default:
+      return assertNever(reason);
+  }
+}
+
+/**
+ * Line of a broken relation: `path:line: source -kind-> target (reason)`
+ */
+export function describeBrokenRelation(relation: BrokenRelation): string {
+  return `${describeDeclaration(relation)} (${describeBrokenReason(relation.reason)})`;
 }

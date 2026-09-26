@@ -9,6 +9,7 @@
  */
 
 import { TraceabilityError } from "./errors.ts";
+import { compileHashRule, type HashRule } from "./id.ts";
 
 /** Distance calculators */
 export const DISTANCE_NAMES = ["levenshtein", "jaro-winkler", "cosine", "structural"] as const;
@@ -36,9 +37,24 @@ export const EXTRACT_FORMATS = ["markdown", "json", "simple"] as const;
 export type ExtractFormat = typeof EXTRACT_FORMATS[number];
 
 /** Output formats of list mode */
-export const LIST_FORMATS = ["json", "simple", "csv"] as const;
+export const LIST_FORMATS = ["json", "simple", "csv", "locations", "count"] as const;
 /** Output format of list mode */
 export type ListFormat = typeof LIST_FORMATS[number];
+
+/** Output formats of relations mode */
+export const RELATIONS_FORMATS = ["simple", "json", "tsv"] as const;
+/** Output format of relations mode */
+export type RelationsFormat = typeof RELATIONS_FORMATS[number];
+
+/** Directions of relations mode, seen from the requested IDs */
+export const RELATION_DIRECTIONS = ["in", "out", "both"] as const;
+/**
+ * Direction seen from the requested IDs:
+ * `in` relations pointing at them, `out` relations they declare, `both` either
+ */
+export type RelationDirection = typeof RELATION_DIRECTIONS[number];
+/** Direction used when none is given */
+export const DEFAULT_RELATION_DIRECTION: RelationDirection = "both";
 
 /** Sort keys of list mode */
 export const SORT_KEYS = ["fullId", "scope", "level", "count"] as const;
@@ -69,6 +85,16 @@ export const FRONTMATTER_POLICIES = ["include", "skip"] as const;
 export type FrontmatterPolicy = typeof FRONTMATTER_POLICIES[number];
 /** Frontmatter policy used when none is given */
 export const DEFAULT_FRONTMATTER: FrontmatterPolicy = "include";
+
+/** How IDs without a hash are treated */
+export const HASH_POLICIES = ["any", "required"] as const;
+/**
+ * How IDs without a hash are treated:
+ * `any` keeps them, `required` excludes them from the extracted IDs
+ */
+export type HashPolicy = typeof HASH_POLICIES[number];
+/** Hash policy used when none is given */
+export const DEFAULT_HASH_POLICY: HashPolicy = "any";
 
 /** Node coloring modes of graph mode */
 export const COLOR_MODES = ["cluster", "scope", "level"] as const;
@@ -143,5 +169,22 @@ export function parseNumber(option: string, value: unknown, min = 0): number {
     option,
     value: text,
     expected: `a number >= ${min}`,
+  });
+}
+
+/**
+ * Parse a hash pattern (regular expression matched against the whole last segment)
+ *
+ * @throws TraceabilityError `InvalidOptionValue`
+ */
+export function parseHashPattern(option: string, value: unknown): HashRule {
+  const text = String(value);
+  const rule = text === "" ? null : compileHashRule(text);
+  if (rule) return rule;
+  throw new TraceabilityError({
+    kind: "InvalidOptionValue",
+    option,
+    value: text,
+    expected: "a non-empty regular expression",
   });
 }
