@@ -64,6 +64,8 @@ export interface RelationEdge {
  *
  * - `SourceMissing`: relations are declared where no own ID of the declaring item exists
  * - `InvalidTarget`: a relation value is not a traceability ID
+ * - `InvalidYaml`: a YAML region declaring relations is not valid YAML; its relations
+ *   were read line by line instead (`reason` and position from the YAML parser)
  */
 export type RelationIssue =
   | (SourcePosition & {
@@ -71,7 +73,8 @@ export type RelationIssue =
     relation: RelationKind;
     targets: NonEmptyArray<string>;
   })
-  | (SourcePosition & { kind: "InvalidTarget"; relation: RelationKind; value: string });
+  | (SourcePosition & { kind: "InvalidTarget"; relation: RelationKind; value: string })
+  | (SourcePosition & { kind: "InvalidYaml"; reason: string });
 
 /**
  * Why a declared target was not found
@@ -142,6 +145,8 @@ export function describeRelationIssue(issue: RelationIssue): string {
       return `${at}: ${issue.relation} has no own ID to start from; ignored ${issue.targets.length} target(s)`;
     case "InvalidTarget":
       return `${at}: ${issue.relation} value is not a traceability ID: ${issue.value}`;
+    case "InvalidYaml":
+      return `${at}: YAML is not valid (${issue.reason}); relations were read line by line`;
     default:
       return assertNever(issue);
   }

@@ -292,7 +292,9 @@ traceability:
 - Only the referencing item writes the relation; the source of an arrow is the item's own `id`
   (`id: <ID>` or `id:` / `full: <ID>`). Relations with no own ID are skipped with a warning.
 - Relations are read from the frontmatter and fenced `yaml` blocks; `--skip-frontmatter`
-  limits them to the blocks.
+  limits them to the blocks. Valid YAML is read by a YAML parser (`@std/yaml`), so any
+  YAML form works (flow or block collections, quoted keys, anchors, block scalars, …).
+  A region that is not valid YAML is read line by line and reported as `InvalidYaml`.
 - A target without a version follows `--versions` (newest version by default).
 - A target that appears nowhere except in relation values is a broken link: it is reported
   and the exit code is 1 (`--allow-missing` → 0).

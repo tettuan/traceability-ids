@@ -22,9 +22,10 @@ traceability:
 # Body
 `;
 
-Deno.test("extractRelations - items in frontmatter: source is id.full, values keep their lines", () => {
+Deno.test("extractRelations - invalid YAML falls back to line reading, with InvalidYaml", () => {
   const result = extractRelationsFromText(ITEMS, "a.md");
-  assertEquals(result.issues, []);
+  // the description starting with a backquote is not valid YAML
+  assertEquals(result.issues.map((i) => [i.kind, i.lineNumber]), [["InvalidYaml", 7]]);
   assertEquals(
     result.declarations.map((d) => [d.kind, d.source, d.target, d.lineNumber]),
     [
@@ -77,7 +78,7 @@ Deno.test("extractRelations - empty relations need no source", () => {
   const text = "---\ntype: requirements\nderived_from: []\ntrace_to:\n---\n";
   assertEquals(extractRelationsFromText(text, "a.md"), {
     declarations: [],
-    referenceLines: [{ filePath: "a.md", lineNumber: 3 }],
+    referenceLines: [{ filePath: "a.md", lineNumber: 3 }, { filePath: "a.md", lineNumber: 4 }],
     issues: [],
   });
 });
