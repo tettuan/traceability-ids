@@ -67,6 +67,57 @@ src/
 ルート直下の `search.ts` / `extract.ts` / `graph.ts` / `analyze.ts` / `list.ts`
 が各モードのエントリポイント（JSR サブパス）である。
 
+## 開発方針（型化・全域性・SSoT）
+
+実装・レビューは次の3原則に従う。新しい機能もこの形で書く。
+
+### 1. 型化（状態・失敗を型で表す）
+
+- 取りうる状態は判別共用体で表し、`kind` / `status` で分岐する
+  （`ErrorDetail`, `RelationIssue`, `ModeOutcome`, `ModeEvent`）
+- 不正な状態は型で表現できないようにする。例: `partial` の `missing` と
+  `SourceMissing` の `targets` は `NonEmptyArray<T>` であり、空は作れない
+- 未検証の文字列を内部に通さない。CLI 値は `options.ts` のパーサーで語彙型
+  （`DistanceName`, `VersionMatchMode` など）に変換し、不正値は
+  `InvalidOptionValue` にする
+- 失敗は `TraceabilityError`（`ErrorDetail`）で投げる。素の `Error` や文字列は使わない
+- 進捗は文字列ではなく `ModeEvent` として `io.report()` に渡す
+
+### 2. 全域性（すべての入力に定義された結果を返す）
+
+- 関数はすべての入力に対して結果を返す。例外になるのは型付きエラーとして宣言した
+  ものだけ（`@throws` に kind を書く）
+- 共用体の `switch` は `default: return assertNever(x)` で閉じ、kind の追加漏れを
+  コンパイル時に検出する
+- 境界値は明示的に扱う。NaN・無限大・範囲外は `requireParameter()` で
+  `InvalidParameter` にする。行番号の範囲外などは空の結果を返す
+  （`buildLocationContext`）
+- 解釈できない入力は捨てずに警告にする（`RelationIssue`: `SourceMissing`,
+  `InvalidTarget`）。推測で補完しない（例: 起点 ID を兄弟項目やファイルから借りない）
+- 空の入力の扱いは `EmptyPolicy`（`stop` / `continue`）のように値で選ぶ
+
+### 3. SSoT（Single Source of Truth）
+
+- 語彙は `const` タプルで1回だけ宣言し、型・ヘルプ・検証・網羅性をそこから導出する
+  （`DISTANCE_NAMES` → `DistanceName`、`RELATION_KINDS` → `RelationKind`）
+- 対応表は mapped type で全キーを必須にする
+  （`OUTCOME_EXIT_CODES: { [S in ModeOutcome["status"]]: number }`,
+  `RELATION_LABELS`）。キーを足すと未定義箇所がコンパイルエラーになる
+- ID 文法は `core/id.ts` だけで定義する。正規表現や分解処理を他所に書かない
+- 終了コードは `EXIT_CODES` / `OUTCOME_EXIT_CODES`、メッセージは
+  `describeError()` / `describeEvent()` を唯一の出所とし、ヘルプ
+  （`exitCodesHelp()`）もそこから生成する
+- ファイル I/O は `core/io.ts`、共通ステップは `modes/pipeline.ts` に集約する
+- ドキュメントはコードの定義を指し、値の一覧を重複して持つ場合はコードと同時に更新する
+
+### レビュー観点
+
+| 観点   | 確認すること                                                                 |
+| ------ | ---------------------------------------------------------------------------- |
+| 型化   | `string` / `boolean` のまま状態を運んでいないか。空や不正値が作れないか      |
+| 全域性 | `assertNever` で閉じているか。境界値・空入力・不正入力の結果が決まっているか |
+| SSoT   | 同じ語彙・対応表・正規表現が2か所以上にないか                                |
+
 ## CLI 引数定義
 
 ### 基本使用法
