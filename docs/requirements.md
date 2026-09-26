@@ -386,6 +386,14 @@ deno run --allow-read src/cli.ts ./data ./output/context.md \
 - ファイルやIDが見つからない場合も停止せず、空のインデックスを出力する
   （他のモードは出力せずに終了する）
 
+### 8. ID 間の関係（derived_from / trace_to、Issue #2・未実装）
+
+- `derived_from`（派生元）と `trace_to`（追跡先・参照先）は、参照する側の項目にだけ書く。
+  参照される側は、誰から参照されているかを知らなくてよい
+- 関係は参照する側から参照される側への有向の辺であり、level の上位・下位とは無関係
+- 逆向きの関係はツールが導出する
+- 詳細と未決定事項: [trace-relations.md](./trace-relations.md)
+
 ## 出力形式
 
 クラスタリングされた結果を出力する。
