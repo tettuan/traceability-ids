@@ -1,4 +1,5 @@
-import { assertEquals, assertThrows } from "@std/assert";
+import { assertEquals } from "@std/assert";
+import { DISTANCE_NAMES } from "../core/options.ts";
 import { createDistanceCalculator } from "./distance-factory.ts";
 
 Deno.test("createDistanceCalculator - levenshtein", () => {
@@ -25,17 +26,8 @@ Deno.test("createDistanceCalculator - structural", () => {
   assertEquals(typeof calc.calculate, "function");
 });
 
-Deno.test("createDistanceCalculator - unknown throws", () => {
-  assertThrows(
-    () => createDistanceCalculator("unknown"),
-    Error,
-    "Unknown distance calculator",
-  );
-});
-
 Deno.test("createDistanceCalculator - calculators produce valid output", () => {
-  const names = ["levenshtein", "jaro-winkler", "cosine", "structural"];
-  for (const name of names) {
+  for (const name of DISTANCE_NAMES) {
     const calc = createDistanceCalculator(name);
     const d = calc.calculate("abc", "abd");
     assertEquals(typeof d, "number");

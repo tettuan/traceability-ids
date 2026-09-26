@@ -17,17 +17,3 @@ export interface ClusteringAlgorithm {
    */
   readonly name: string;
 }
-
-/**
- * クラスタリングオプション（アルゴリズムごとに異なる）
- */
-export interface ClusteringOptions {
-  /** K-Means: クラスタ数 */
-  k?: number;
-  /** 階層的: 結合の閾値 */
-  threshold?: number;
-  /** DBSCAN: 近傍の半径 */
-  epsilon?: number;
-  /** DBSCAN: 最小ポイント数 */
-  minPoints?: number;
-}

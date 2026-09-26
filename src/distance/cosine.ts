@@ -1,3 +1,4 @@
+import { requireParameter } from "../core/params.ts";
 import type { DistanceCalculator } from "./calculator.ts";
 
 /**
@@ -12,9 +13,7 @@ export class CosineDistance implements DistanceCalculator {
    * @param n n-gramのサイズ（デフォルト: 2 = bigram）
    */
   constructor(private n: number = 2) {
-    if (n < 1) {
-      throw new Error("n-gram size must be at least 1");
-    }
+    requireParameter("n-gram size", n, { kind: "integerAtLeast", min: 1 });
   }
 
   /**

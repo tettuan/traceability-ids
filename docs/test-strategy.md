@@ -166,23 +166,70 @@ Deno.test("StructuralDistance - same structure, different values", () => {
 - Debugging integration points
 - Monitoring state changes
 
-### 3. Mode Runner Tests (Future)
+### 3. Mode Scenario Tests
 
-**Purpose**: Test CLI mode execution logic
+**Purpose**: Test mode execution as typed given/when/then scenarios
 
-**Location**: `src/modes/*.test.ts`
+**Location**: `src/modes/modes.scenario.test.ts`, built on `src/testing/scenario.ts`
 
-**Examples**:
+Modes report typed `ModeEvent`s through an injectable `ModeIO` instead of writing
+log text. A scenario injects a recording IO (`recordingIO()`), runs the mode
+against files created in a temporary directory, and asserts:
 
-- Cluster mode execution
-- Search mode execution
-- Extract mode execution
+- **Event order** ("A then B"): `events` must occur in order (`order: "inOrder"`,
+  the default, allows other events in between; `"exact"` requires exactly these
+  event types)
+- **Absent events**: `absent` lists event types that must not occur (e.g. no
+  `FilesScanned` after a missing path)
+- **Outcome**: `{ kind: "success" }` or `{ kind: "error", error: { kind, ...fields } }`,
+  checked against `TraceabilityError.detail`
+- **Further checks**: `verify(ctx)` inspects printed output and written files
 
-**BreakdownLogger Use Cases**:
+`ExpectedEvent<E>` only accepts an existing event `type` together with a subset
+of that event's own fields, and `ExpectedError` only an existing error `kind`
+with a subset of its fields, so a misspelled event or field is a type error.
 
-- Debugging CLI argument processing
-- Tracing mode execution flow
-- Validating output generation
+```typescript
+import { defineScenario } from "../testing/scenario.ts";
+
+defineScenario({
+  name: "extract: a missing path fails after the scan starts, before any file is counted",
+  given: { "docs/req.md": "req:auth:login-a1b2c3#20251111a\n" },
+  when: (ctx) =>
+    runExtractMode(
+      { ...options, inputDir: [ctx.path("docs"), ctx.path("publish")] },
+      ctx.io,
+    ),
+  then: {
+    events: [{ type: "TargetsLoaded" }, { type: "ScanStarted" }],
+    absent: ["FilesScanned", "OutputPrinted"],
+    outcome: { kind: "error", error: { kind: "PathNotFound" } },
+  },
+});
+```
+
+Covered behaviors include versionless ID resolution (`--versions latest` /
+`all`), `--ext` with several input paths, error kinds (`PathNotFound`,
+`FileWriteFailed`, `InvalidParameter`), stopping on empty input
+(`Stopped(NoFiles)` / `Stopped(NoIds)`), and list mode continuing with an empty
+index.
+
+`src/testing/` is test infrastructure only and is excluded from JSR publishing
+(`publish.exclude` in `deno.json`). Its own behavior is tested in
+`src/testing/scenario.test.ts`.
+
+### 4. CLI Argument and Error Tests
+
+**Location**: `src/cli/cli.test.ts`, `src/core/errors.test.ts`,
+`src/core/options.test.ts`, `src/core/id.test.ts`
+
+- Argument parsers (`src/cli/args.ts`) are pure, so they are tested directly:
+  `argv` in, `{ kind: "help" } | { kind: "run", options }` out, or a
+  `TraceabilityError` with the expected `detail` (`MissingArgument`,
+  `InvalidOptionValue`)
+- `runCommand` is tested with an injected `CliConsole` for the
+  `Error [<kind>]: <message>` line and the exit code of each error category
+- ID grammar tests cover versionless IDs and the trailing-`#` rule
 
 ## Test Organization
 
@@ -201,15 +248,26 @@ src/
 │   ├── cosine.test.ts
 │   ├── structural.ts
 │   └── structural.test.ts
-├── modes/                          # Future: Add mode tests
+├── modes/
 │   ├── cluster.ts
-│   ├── cluster.test.ts (TODO)
 │   ├── search.ts
-│   └── search.test.ts (TODO)
+│   ├── extract.ts
+│   └── modes.scenario.test.ts      # given/when/then scenarios for all modes
+├── cli/
+│   ├── args.ts
+│   └── cli.test.ts                 # argument parsers and runner
+├── testing/                        # scenario helpers (not published)
+│   ├── scenario.ts
+│   └── scenario.test.ts
 └── core/
+    ├── id.ts
+    ├── id.test.ts
+    ├── errors.test.ts
+    ├── options.test.ts
     ├── extractor.ts
     ├── extractor.test.ts
-    └── scanner.ts
+    ├── scanner.ts
+    └── scanner.test.ts
 ```
 
 ### Test Naming Conventions
@@ -365,8 +423,7 @@ This includes:
 1. **Integration Tests**: Add end-to-end pipeline tests
 2. **Performance Tests**: Benchmark critical algorithms
 3. **Property-Based Testing**: Use fuzzing for algorithm robustness
-4. **Mode Runner Tests**: Test CLI execution logic
-5. **Coverage Reporting**: Add coverage analysis to CI
+4. **Coverage Reporting**: Add coverage analysis to CI
 
 ### BreakdownLogger Patterns
 
@@ -409,3 +466,4 @@ This includes:
 
 - 2025-01-12: Initial test strategy document
 - 2025-01-12: Added BreakdownLogger integration and guidelines
+- v0.0.11: Added typed scenario tests for modes and CLI argument/error tests

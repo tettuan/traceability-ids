@@ -1,3 +1,6 @@
+import type { IdComponents } from "./id.ts";
+import type { VersionMatchMode } from "./options.ts";
+
 /**
  * Represents a traceability ID with parsed components and location information
  *
@@ -18,19 +21,7 @@
  * };
  * ```
  */
-export interface TraceabilityId {
-  /** The complete ID string as found in the source file */
-  fullId: string;
-  /** The level component (before first colon) - typically indicates requirement type */
-  level: string;
-  /** The scope component (between first and second colon) - typically indicates feature area */
-  scope: string;
-  /** The semantic component (after second colon, before hyphen) - describes the requirement */
-  semantic: string;
-  /** The hash component (after hyphen, before hash symbol) - unique identifier */
-  hash: string;
-  /** The version component (after hash symbol) - version or date identifier */
-  version: string;
+export interface TraceabilityId extends IdComponents {
   /** Absolute path to the file where this ID was found */
   filePath: string;
   /** Line number in the file where this ID was found (1-indexed) */
@@ -141,11 +132,17 @@ export interface SimilaritySearchResult {
  */
 export interface ContextExtractionRequest {
   /** IDs to extract context for */
-  ids: string[];
+  ids: readonly string[];
   /** Number of lines to include before the target line (max: 50) */
   before: number;
   /** Number of lines to include after the target line (max: 50) */
   after: number;
+  /**
+   * How to resolve IDs given without a version (`{level}:{scope}:{semantic}-{hash}`).
+   * `latest` matches only the newest version, `all` matches every version.
+   * IDs given with a version always match exactly. Default: `latest`.
+   */
+  versions?: VersionMatchMode;
 }
 
 /**
@@ -187,8 +184,10 @@ export interface LocationContext {
  * ```
  */
 export interface ExtractedContext {
-  /** The ID that was searched for */
+  /** The matched full ID (with version) */
   id: string;
+  /** The requested ID, present only when it was given without a version and resolved to `id` */
+  query?: string;
   /** All locations where this ID was found */
   locations: LocationContext[];
 }

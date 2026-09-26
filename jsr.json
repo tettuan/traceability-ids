@@ -1,6 +1,6 @@
 {
   "name": "@aidevtool/traceability-ids",
-  "version": "0.0.10",
+  "version": "0.0.11",
   "exports": "./src/cli.ts",
   "publish": {
     "include": [
@@ -12,7 +12,8 @@
       "data/**",
       "tmp/**",
       "docs/**",
-      "**/*.test.ts"
+      "**/*.test.ts",
+      "src/testing/**"
     ]
   }
 }

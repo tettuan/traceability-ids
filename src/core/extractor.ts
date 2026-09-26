@@ -1,52 +1,36 @@
+import { findIds } from "./id.ts";
+import { readText } from "./io.ts";
 import type { TraceabilityId } from "./types.ts";
 
 /**
- * トレーサビリティIDのパターン: {level}:{scope}:{semantic}-{hash}#{version}
+ * テキストからトレーサビリティIDを抽出する（純粋関数）
+ * @param content テキスト
+ * @param filePath 位置情報に記録するファイルパス
+ * @returns 抽出されたトレーサビリティIDの配列（出現順）
  */
-const TRACEABILITY_ID_PATTERN =
-  /([a-zA-Z0-9_-]+):([a-zA-Z0-9_-]+):([a-zA-Z0-9_-]+)-([a-zA-Z0-9]+)#([a-zA-Z0-9]+)/g;
+export function extractIdsFromText(
+  content: string,
+  filePath: string,
+): TraceabilityId[] {
+  return content.split("\n").flatMap((line, index) =>
+    findIds(line).map((components) => ({
+      ...components,
+      filePath,
+      lineNumber: index + 1, // 1-based行番号
+    }))
+  );
+}
 
 /**
  * 指定されたファイルからトレーサビリティIDを抽出する
  * @param filePath ファイルパス
  * @returns 抽出されたトレーサビリティIDの配列
+ * @throws TraceabilityError `PathNotFound` | `PathAccessDenied` | `FileReadFailed`
  */
 export async function extractIdsFromFile(
   filePath: string,
 ): Promise<TraceabilityId[]> {
-  const ids: TraceabilityId[] = [];
-
-  try {
-    const content = await Deno.readTextFile(filePath);
-    const lines = content.split("\n");
-
-    for (let lineNumber = 0; lineNumber < lines.length; lineNumber++) {
-      const line = lines[lineNumber];
-      // 正規表現をリセット
-      TRACEABILITY_ID_PATTERN.lastIndex = 0;
-
-      let match: RegExpExecArray | null;
-      while ((match = TRACEABILITY_ID_PATTERN.exec(line)) !== null) {
-        const [fullId, level, scope, semantic, hash, version] = match;
-
-        ids.push({
-          fullId,
-          level,
-          scope,
-          semantic,
-          hash,
-          version,
-          filePath,
-          lineNumber: lineNumber + 1, // 1-based行番号
-        });
-      }
-    }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`Failed to extract IDs from ${filePath}: ${message}`);
-  }
-
-  return ids;
+  return extractIdsFromText(await readText(filePath), filePath);
 }
 
 /**

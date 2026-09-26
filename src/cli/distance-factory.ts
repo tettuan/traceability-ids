@@ -1,3 +1,5 @@
+import { assertNever } from "../core/errors.ts";
+import type { DistanceName } from "../core/options.ts";
 import { CosineDistance } from "../distance/cosine.ts";
 import { JaroWinklerDistance } from "../distance/jaro_winkler.ts";
 import { LevenshteinDistance } from "../distance/levenshtein.ts";
@@ -7,7 +9,7 @@ import type { DistanceCalculator } from "../distance/calculator.ts";
 /**
  * 距離計算器を取得するファクトリー関数
  */
-export function createDistanceCalculator(name: string): DistanceCalculator {
+export function createDistanceCalculator(name: DistanceName): DistanceCalculator {
   switch (name) {
     case "levenshtein":
       return new LevenshteinDistance();
@@ -18,8 +20,6 @@ export function createDistanceCalculator(name: string): DistanceCalculator {
     case "structural":
       return new StructuralDistance();
     default:
-      throw new Error(
-        `Unknown distance calculator: ${name}. Available: levenshtein, jaro-winkler, cosine, structural`,
-      );
+      return assertNever(name);
   }
 }

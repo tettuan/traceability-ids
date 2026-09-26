@@ -2,19 +2,18 @@ import { DBSCANClustering } from "../clustering/dbscan.ts";
 import { HierarchicalClustering } from "../clustering/hierarchical.ts";
 import { KMeansClustering } from "../clustering/kmeans.ts";
 import type { ClusteringAlgorithm } from "../clustering/algorithm.ts";
+import { assertNever } from "../core/errors.ts";
+import type { AlgorithmName, ClusteringOptions } from "../core/options.ts";
 
-export interface ClusteringOptions {
-  threshold: number;
-  k: number;
-  epsilon: number;
-  minPoints: number;
-}
+export type { ClusteringOptions } from "../core/options.ts";
 
 /**
  * クラスタリングアルゴリズムを取得するファクトリー関数
+ *
+ * @throws TraceabilityError `InvalidParameter`（アルゴリズムのパラメータが範囲外）
  */
 export function createClusteringAlgorithm(
-  name: string,
+  name: AlgorithmName,
   options: ClusteringOptions,
 ): ClusteringAlgorithm {
   switch (name) {
@@ -25,8 +24,6 @@ export function createClusteringAlgorithm(
     case "dbscan":
       return new DBSCANClustering(options.epsilon, options.minPoints);
     default:
-      throw new Error(
-        `Unknown clustering algorithm: ${name}. Available: hierarchical, kmeans, dbscan`,
-      );
+      return assertNever(name);
   }
 }

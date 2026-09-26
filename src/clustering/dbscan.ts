@@ -1,3 +1,4 @@
+import { requireParameter } from "../core/params.ts";
 import type { Cluster, TraceabilityId } from "../core/types.ts";
 import type { ClusteringAlgorithm } from "./algorithm.ts";
 
@@ -16,12 +17,8 @@ export class DBSCANClustering implements ClusteringAlgorithm {
     private epsilon: number,
     private minPoints: number,
   ) {
-    if (epsilon <= 0) {
-      throw new Error("Epsilon must be positive");
-    }
-    if (minPoints < 1) {
-      throw new Error("MinPoints must be at least 1");
-    }
+    requireParameter("epsilon", epsilon, { kind: "positive" });
+    requireParameter("min-points", minPoints, { kind: "integerAtLeast", min: 1 });
   }
 
   /**

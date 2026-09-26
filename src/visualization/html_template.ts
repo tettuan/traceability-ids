@@ -1,3 +1,4 @@
+import type { ColorMode, Layout } from "../core/options.ts";
 /**
  * HTML template generator for 3D graph visualization
  *
@@ -12,9 +13,9 @@ import type { GraphData } from "./graph_data.ts";
 /** Options for HTML generation */
 export interface HTMLGenerationOptions {
   /** Initial color-by mode: cluster, scope, or level */
-  colorBy?: "cluster" | "scope" | "level";
+  colorBy?: ColorMode;
   /** Initial layout mode: force or mds */
-  layout?: "force" | "mds";
+  layout?: Layout;
   /** Title for the HTML page */
   title?: string;
 }

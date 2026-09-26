@@ -1,65 +1,50 @@
-import { deduplicateIds, extractIds } from "../core/extractor.ts";
-import { scanFiles } from "../core/scanner.ts";
 import { createDistanceCalculator } from "../cli/distance-factory.ts";
-import { searchSimilar } from "../search/similarity.ts";
+import { consoleIO, type ModeIO } from "../core/events.ts";
+import { COMPLETE, type ModeOutcome } from "../core/outcome.ts";
+import { deduplicateIds } from "../core/extractor.ts";
+import type { DistanceName, SearchFormat } from "../core/options.ts";
 import { formatSearchResult } from "../formatter/formatter.ts";
+import { searchSimilar } from "../search/similarity.ts";
+import { collectIds, emitResult, type InputSpec } from "./pipeline.ts";
 
-export interface SearchModeOptions {
-  inputDir: string;
+/** Options of search mode */
+export interface SearchModeOptions extends InputSpec {
+  /** Output file (default: STDOUT) */
   outputFile?: string;
+  /** Search query */
   query: string;
-  distance: string;
+  /** Distance calculator */
+  distance: DistanceName;
+  /** Return only the top N results (default: all) */
   top?: number;
+  /** Include distance scores (simple format) */
   showDistance: boolean;
-  format: "json" | "markdown" | "csv" | "simple";
+  /** Output format */
+  format: SearchFormat;
 }
 
 /**
  * 検索モードを実行
+ *
+ * Events: ModeStarted → CalculatorSelected → (collectIds) → SearchCompleted → Output*
  */
-export async function runSearchMode(options: SearchModeOptions): Promise<void> {
-  // Progress logs go to STDERR
-  console.error(`Search mode`);
-  console.error(`Query: ${options.query}`);
-  console.error(`Distance calculator: ${options.distance}`);
-
+export async function runSearchMode(
+  options: SearchModeOptions,
+  io: ModeIO = consoleIO,
+): Promise<ModeOutcome> {
+  io.report({ type: "ModeStarted", mode: "search" });
   const calculator = createDistanceCalculator(options.distance);
+  io.report({ type: "CalculatorSelected", name: options.distance });
 
-  const files = await scanFiles(options.inputDir);
-  console.error(`Found ${files.length} markdown files`);
+  const collected = await collectIds(options, io);
+  if (!collected) return COMPLETE;
 
-  const allIds = await extractIds(files);
-  console.error(`Extracted ${allIds.length} IDs (with duplicates)`);
+  const result = searchSimilar(options.query, deduplicateIds(collected.rawIds), calculator, {
+    top: options.top,
+  });
+  io.report({ type: "SearchCompleted", results: result.items.length });
 
-  const ids = deduplicateIds(allIds);
-  console.error(`Deduplicated to ${ids.length} unique IDs`);
-
-  if (ids.length === 0) {
-    console.error("No traceability IDs found");
-    return;
-  }
-
-  console.error("Searching for similar IDs...");
-  const result = searchSimilar(
-    options.query,
-    ids,
-    calculator,
-    { top: options.top },
-  );
-  console.error(`Found ${result.items.length} results`);
-
-  const content = formatSearchResult(
-    result,
-    options.format,
-    options.showDistance,
-  );
-
-  if (options.outputFile) {
-    console.error(`Writing results to: ${options.outputFile}`);
-    await Deno.writeTextFile(options.outputFile, content);
-    console.error("Done!");
-  } else {
-    // Output to STDOUT
-    console.log(content);
-  }
+  const content = formatSearchResult(result, options.format, options.showDistance);
+  await emitResult(io, content, options.outputFile);
+  return COMPLETE;
 }

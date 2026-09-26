@@ -1,3 +1,4 @@
+import { requireParameter } from "../core/params.ts";
 import type { DistanceCalculator } from "./calculator.ts";
 
 /**
@@ -12,9 +13,7 @@ export class JaroWinklerDistance implements DistanceCalculator {
    * @param prefixScale 接頭辞のスケーリング係数（0.0-0.25、デフォルト: 0.1）
    */
   constructor(private prefixScale: number = 0.1) {
-    if (prefixScale < 0 || prefixScale > 0.25) {
-      throw new Error("Prefix scale must be between 0.0 and 0.25");
-    }
+    requireParameter("prefix scale", prefixScale, { kind: "between", min: 0, max: 0.25 });
   }
 
   /**

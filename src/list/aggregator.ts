@@ -7,8 +7,9 @@
 
 import type { IdIndex, IdIndexEntry, TraceabilityId } from "../core/types.ts";
 
-/** Sort key options for ID index entries */
-export type SortKey = "fullId" | "scope" | "level" | "count";
+import type { SortKey } from "../core/options.ts";
+
+export type { SortKey } from "../core/options.ts";
 
 /**
  * Aggregate raw traceability IDs into an IdIndex.
@@ -63,11 +64,11 @@ export function aggregateOccurrences(
  * Split an IdIndex into batches of the specified size.
  *
  * @param index - The full IdIndex
- * @param batchSize - Number of entries per batch
+ * @param batchSize - Number of entries per batch (not a positive integer → one batch)
  * @returns Array of IdIndex objects, each with a subset of entries
  */
 export function splitBatches(index: IdIndex, batchSize: number): IdIndex[] {
-  if (batchSize <= 0) {
+  if (!(Number.isInteger(batchSize) && batchSize > 0)) {
     return [index];
   }
 

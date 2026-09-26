@@ -25,7 +25,11 @@ export function searchSimilar(
   items.sort((a, b) => a.distance - b.distance);
 
   // 3. 上位N件に絞る（オプション）
-  const filteredItems = options?.top ? items.slice(0, options.top) : items;
+  // top 未指定なら全件。指定時は 0 以上の整数に丸める（負数・NaN は 0 件）
+  const top = options?.top;
+  const filteredItems = top === undefined
+    ? items
+    : items.slice(0, Number.isFinite(top) ? Math.max(0, Math.floor(top)) : 0);
 
   return {
     query,

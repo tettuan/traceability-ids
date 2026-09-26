@@ -4,6 +4,8 @@
  * @module
  */
 
+import { assertNever } from "../core/errors.ts";
+import type { ListFormat } from "../core/options.ts";
 import type { IdIndex } from "../core/types.ts";
 
 /**
@@ -57,7 +59,7 @@ export function formatListAsCsv(index: IdIndex): string {
  */
 export function formatListResult(
   index: IdIndex,
-  format: "json" | "simple" | "csv",
+  format: ListFormat,
 ): string {
   switch (format) {
     case "json":
@@ -67,6 +69,6 @@ export function formatListResult(
     case "csv":
       return formatListAsCsv(index);
     default:
-      throw new Error(`Unknown list format: ${format}`);
+      return assertNever(format);
   }
 }

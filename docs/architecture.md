@@ -10,8 +10,14 @@ Pure TypeScript で実装し、アルゴリズムを切り替え可能な設計�
 src/
 ├── core/
 │   ├── types.ts              # 共通型定義
+│   ├── id.ts                 # ID文法（パターン・解析・バージョン比較）の唯一の定義
+│   ├── errors.ts             # TraceabilityError / ErrorDetail / 終了コード
+│   ├── options.ts            # オプション語彙（const タプル）とパーサー
+│   ├── events.ts             # ModeEvent / ModeIO / consoleIO
+│   ├── io.ts                 # 型付きエラー付きのファイル読み書き
 │   ├── extractor.ts          # ID抽出
-│   └── scanner.ts            # ファイルスキャン
+│   ├── extractor-cli.ts      # rg + sort による高速抽出（外部コマンド）
+│   └── scanner.ts            # ファイルスキャン（複数パス・拡張子指定）
 ├── distance/
 │   ├── calculator.ts         # 距離計算インターフェース
 │   ├── levenshtein.ts        # レーベンシュタイン距離
@@ -23,44 +29,77 @@ src/
 │   ├── hierarchical.ts       # 階層的クラスタリング
 │   ├── kmeans.ts             # K-Means
 │   └── dbscan.ts             # DBSCAN
-├── search/                   # 類似度検索（新機能）
+├── search/
 │   └── similarity.ts         # 類似度検索実装
+├── extract/
+│   ├── context.ts            # コンテキスト抽出
+│   ├── resolver.ts           # 要求IDの解決（バージョン省略IDの latest / all）
+│   └── loader.ts             # ID一覧の読み込み（IdsSource）
+├── list/
+│   └── aggregator.ts         # List mode の集約・バッチ分割
+├── visualization/            # Graph mode（MDS, グラフデータ, HTML）
 ├── formatter/
 │   ├── formatter.ts          # 出力フォーマッター
+│   ├── list_formatter.ts     # List mode 用フォーマッター
 │   └── simple.ts             # シンプル形式
-├── cli.ts                    # CLIエントリポイント
-└── mod.ts                    # ライブラリエントリポイント
+├── modes/
+│   ├── pipeline.ts           # 共通ステップ（collectIds / emitResult）
+│   ├── cluster.ts            # 各モードの実行関数 runXxxMode(options, io)
+│   ├── search.ts
+│   ├── extract.ts
+│   ├── graph.ts
+│   ├── analyze.ts
+│   ├── list.ts
+│   └── modes.scenario.test.ts # given/when/then シナリオテスト
+├── cli/
+│   ├── args.ts               # 純粋な引数パーサー（argv → ParsedArgs）
+│   ├── runner.ts             # 実行ドライバー（エラー → 終了コード）
+│   ├── distance-factory.ts   # 距離計算器の生成
+│   └── clustering-factory.ts # クラスタリングアルゴリズムの生成
+├── testing/
+│   └── scenario.ts           # シナリオテスト基盤（JSR公開対象外）
+├── cli.ts                    # CLIエントリポイント（cluster mode）
+└── mod.ts                    # ライブラリエントリポイント（`./mod` として export）
 ```
+
+ルート直下の `search.ts` / `extract.ts` / `graph.ts` / `analyze.ts` / `list.ts`
+が各モードのエントリポイント（JSR サブパス）である。
 
 ## CLI 引数定義
 
 ### 基本使用法
 
+モードはエントリポイント（JSR サブパス）で切り替える。`--mode` オプションは存在しない。
+
 ```bash
 # クラスタリングモード（デフォルト）
-deno run --allow-read --allow-write src/cli.ts <input-dir> <output-file> [options]
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids [options] <input-path...>
 
-# 類似度検索モード（新機能）
-deno run --allow-read --allow-write src/cli.ts <input-dir> <output-file> --mode search --query <query-string> [options]
+# 類似度検索モード
+deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/search --query <query-string> [options] <input-path...>
+
+# 他: /extract, /graph, /analyze, /list
 ```
 
 ### 必須引数
 
-1. **`<input-dir>`** - 調査対象の最上位ディレクトリ
-   - 指定されたディレクトリ配下の *.md ファイルを再帰的にスキャン
-   - 相対パスまたは絶対パス
+1. **`<input-path...>`** - 調査対象のパス（1つ以上）
+   - ディレクトリ: 配下の対象拡張子ファイル（既定 `*.md`）を再帰的にスキャン
+   - ファイル: 拡張子に関係なく常に対象に含める
+   - 相対パスまたは絶対パス。存在しないパスは `PathNotFound` エラー
+   - 省略時は `MissingArgument` エラー
 
-2. **`<output-file>`** - 出力先ファイルパス
-   - クラスタリング結果または検索結果を出力するファイル
-   - 形式: JSON, Markdown, CSV など（オプションで指定）
+出力先は位置引数ではなく `--output <file>` で指定する（省略時は STDOUT。graph /
+analyze は既定のファイルに出力）。
 
 ### オプション引数（共通）
 
-- **`--mode <mode>`** - 実行モード（デフォルト: cluster）
-  - `cluster` - クラスタリングモード
-  - `search` - 類似度検索モード（新機能）
+- **`--ext <list>`** - 走査対象の拡張子（カンマ区切り、デフォルト: `md`）
+  - 例: `md,rs,ts,tsx,mjs,sh`（先頭ドットは有無を問わない）
 
-- **`--distance <name>`** - 距離計算手法（デフォルト: levenshtein）
+- **`--output <file>`** - 出力先ファイルパス（デフォルト: STDOUT）
+
+- **`--distance <name>`** - 距離計算手法（デフォルト: structural、search は cosine）
   - `levenshtein` - レーベンシュタイン距離
   - `jaro-winkler` - ジャロ・ウィンクラー距離
   - `cosine` - コサイン類似度
@@ -73,6 +112,9 @@ deno run --allow-read --allow-write src/cli.ts <input-dir> <output-file> --mode 
   - `markdown` - Markdown形式
   - `csv` - CSV形式
 
+受け付ける値はすべて `src/core/options.ts` の const タプルで定義され、範囲外の値は
+`InvalidOptionValue` エラーになる。
+
 ### オプション引数（クラスタリングモード）
 
 - **`--algorithm <name>`** - クラスタリングアルゴリズム（デフォルト:
@@ -81,7 +123,7 @@ deno run --allow-read --allow-write src/cli.ts <input-dir> <output-file> --mode 
   - `kmeans` - K-Means
   - `dbscan` - DBSCAN
 
-- **`--threshold <number>`** - 階層的クラスタリングの閾値（デフォルト: 10）
+- **`--threshold <number>`** - 階層的クラスタリングの閾値（デフォルト: 0.3）
 
 - **`--k <number>`** - K-Meansのクラスタ数（デフォルト: 0 = 自動推定）
 
@@ -106,49 +148,45 @@ deno run --allow-read --allow-write src/cli.ts <input-dir> <output-file> --mode 
 
 ```bash
 # 基本的な使用（デフォルトモード）
-deno run --allow-read --allow-write src/cli.ts ./data ./output/ids.txt
+deno run --allow-read --allow-write src/cli.ts ./data --output ./output/ids.txt
 
 # アルゴリズムと距離計算手法を指定
-deno run --allow-read --allow-write src/cli.ts ./data ./output/ids.txt \
+deno run --allow-read --allow-write src/cli.ts ./data --output ./output/ids.txt \
   --algorithm hierarchical \
   --distance structural \
   --threshold 0.3
 
 # K-Meansを使用
-deno run --allow-read --allow-write src/cli.ts ./data ./output/ids.txt \
+deno run --allow-read --allow-write src/cli.ts ./data --output ./output/ids.txt \
   --algorithm kmeans \
   --k 5
 
-# クラスタ区切り付きで出力
-deno run --allow-read --allow-write src/cli.ts ./data ./output/ids.txt \
+# 複数パス・拡張子を指定（docs と src 配下の md / rs / ts）
+deno run --allow-read --allow-write src/cli.ts ./docs ./src --ext md,rs,ts \
   --format simple-clustered
 ```
 
-#### 類似度検索モード（新機能）
+#### 類似度検索モード
 
 ```bash
 # キーワード検索 - "security" に関連するID
-deno run --allow-read --allow-write src/cli.ts ./data ./output/similar.txt \
-  --mode search \
+deno run --allow-read --allow-write search.ts ./data --output ./output/similar.txt \
   --query "security" \
   --distance structural \
   --top 10
 
 # 完全なIDから類似検索
-deno run --allow-read --allow-write src/cli.ts ./data ./output/similar.txt \
-  --mode search \
+deno run --allow-read --allow-write search.ts ./data --output ./output/similar.txt \
   --query "req:apikey:encryption-6d3a9c#20251111a" \
   --top 20
 
 # 距離スコア付きで全件出力
-deno run --allow-read --allow-write src/cli.ts ./data ./output/similar.txt \
-  --mode search \
+deno run --allow-read --allow-write search.ts ./data --output ./output/similar.txt \
   --query "security" \
   --show-distance
 
 # JSON形式で詳細データ
-deno run --allow-read --allow-write src/cli.ts ./data ./output/similar.json \
-  --mode search \
+deno run --allow-read --allow-write search.ts ./data --output ./output/similar.json \
   --query "encryption" \
   --format json \
   --top 15
@@ -156,25 +194,39 @@ deno run --allow-read --allow-write src/cli.ts ./data ./output/similar.json \
 
 ## 型定義
 
+### core/id.ts（ID文法）
+
+ID文法 `{level}:{scope}:{semantic}-{hash}[#{version}]` の唯一の定義。
+バージョン省略IDも抽出対象であり、その場合 `version` は空文字列になる。
+
+- 検索パターン（`idSearchPattern()`）は、バージョンなしIDを「hash の直後が
+  `[A-Za-z0-9_#-]` でない」場合のみ認める。末尾に `#` だけが付いたものや、
+  より長い語の一部は ID とみなさない
+- `parseId(text)` - 文字列全体を ID として解析（ID でなければ `null`）
+- `findIds(line)` - 1行中の ID を出現順に列挙（`extractor.ts` が使用）
+- `hasVersion` / `uniqueKeyOf`（バージョンを除いたキー）/ `withVersion`
+- `compareVersionsDesc` - 数字列を数値として比較し新しい順に並べる
+  （例: `20260810` > `20251111b` > `20251111a`、`v10` > `v2`）
+
+```typescript
+export interface IdComponents {
+  fullId: string;
+  level: string;
+  scope: string;
+  semantic: string;
+  hash: string;
+  /** バージョン（`#` 以降）。バージョンなしで書かれた場合は空文字列 */
+  version: string;
+}
+```
+
 ### core/types.ts
 
 ```typescript
 /**
- * トレーサビリティID
+ * トレーサビリティID（IdComponents + 位置情報）
  */
-export interface TraceabilityId {
-  /** 完全なID文字列 */
-  fullId: string;
-  /** {level}: コロンの前の文字列 */
-  level: string;
-  /** {scope}: 最初のコロンと2番目のコロンの間の文字列 */
-  scope: string;
-  /** {semantic}: 2番目のコロン後からハイフンまでの文字列 */
-  semantic: string;
-  /** {hash}: ハイフン後からハッシュ記号までの文字列 */
-  hash: string;
-  /** {version}: ハッシュ記号後の文字列 */
-  version: string;
+export interface TraceabilityId extends IdComponents {
   /** IDが見つかったファイルパス */
   filePath: string;
   /** ファイル内での行番号 */
@@ -297,21 +349,30 @@ export interface ClusteringAlgorithm {
    */
   readonly name: string;
 }
+```
 
-/**
- * クラスタリングオプション（アルゴリズムごとに異なる）
- */
+### core/options.ts
+
+オプションの語彙は const タプルで一度だけ宣言し、型はそこから導出する。
+ヘルプ・検証・`switch` の網羅性が同じ定義を共有する。
+
+```typescript
+export const ALGORITHM_NAMES = ["hierarchical", "kmeans", "dbscan"] as const;
+export type AlgorithmName = typeof ALGORITHM_NAMES[number];
+// DISTANCE_NAMES, CLUSTER_FORMATS, SEARCH_FORMATS, EXTRACT_FORMATS, LIST_FORMATS,
+// SORT_KEYS, VERSION_MATCH_MODES, COLOR_MODES, LAYOUTS も同様
+
+/** クラスタリングオプション（全項目必須） */
 export interface ClusteringOptions {
-  /** K-Means: クラスタ数 */
-  k?: number;
-  /** 階層的: 結合の閾値 */
-  threshold?: number;
-  /** DBSCAN: 近傍の半径 */
-  epsilon?: number;
-  /** DBSCAN: 最小ポイント数 */
-  minPoints?: number;
+  threshold: number; // 階層的: 結合の閾値
+  k: number; // K-Means: クラスタ数（0 = 自動）
+  epsilon: number; // DBSCAN: 近傍の半径
+  minPoints: number; // DBSCAN: 最小ポイント数
 }
 ```
+
+パーサー `parseChoice(option, value, allowed)` / `parseInteger(option, value, min)` /
+`parseNumber(option, value, min)` は不正値で `InvalidOptionValue` を投げる。
 
 ## 実装方針
 
@@ -360,194 +421,58 @@ export class KMeansClustering implements ClusteringAlgorithm {
 }
 ```
 
-## CLI実装例
+## CLI実装
 
-### src/cli.ts
+CLI は「純粋な引数パース」「モード実行」「エラー → 終了コード変換」の3層に分かれる。
+
+```mermaid
+flowchart LR
+    A[entry point<br/>src/cli.ts, search.ts, ...] --> B[CommandSpec<br/>usage / parse / run]
+    B --> C[cli/runner.ts<br/>runCommand]
+    C --> D[cli/args.ts<br/>parseXxxArgs argv → ParsedArgs]
+    C --> E[modes/xxx.ts<br/>runXxxMode options, io]
+    C --> F[exit code]
+```
+
+### エントリポイント（src/cli.ts ほか）
+
+各エントリポイントは USAGE と `CommandSpec` を定義し、`main()` に渡すだけである。
 
 ```typescript
-import { parseArgs } from "@std/cli/parse-args";
-import { scanFiles } from "./core/scanner.ts";
-import { extractIds } from "./core/extractor.ts";
-import { createDistanceMatrix } from "./distance/calculator.ts";
-import { LevenshteinDistance } from "./distance/levenshtein.ts";
-import { JaroWinklerDistance } from "./distance/jaro_winkler.ts";
-import { CosineDistance } from "./distance/cosine.ts";
-import { StructuralDistance } from "./distance/structural.ts";
-import { HierarchicalClustering } from "./clustering/hierarchical.ts";
-import { KMeansClustering } from "./clustering/kmeans.ts";
-import { DBSCANClustering } from "./clustering/dbscan.ts";
-import type { DistanceCalculator } from "./distance/calculator.ts";
-import type { ClusteringAlgorithm } from "./clustering/algorithm.ts";
-
-async function main() {
-  // 引数をパース
-  const args = parseArgs(Deno.args, {
-    string: [
-      "algorithm",
-      "distance",
-      "format",
-      "threshold",
-      "k",
-      "epsilon",
-      "min-points",
-    ],
-    default: {
-      algorithm: "hierarchical",
-      distance: "levenshtein",
-      format: "json",
-      threshold: "0.5",
-      k: "0",
-      epsilon: "0.3",
-      "min-points": "2",
-    },
-  });
-
-  // 必須引数のチェック
-  if (args._.length < 2) {
-    console.error(
-      "Usage: deno run --allow-read --allow-write src/cli.ts <input-dir> <output-file> [options]",
-    );
-    Deno.exit(1);
-  }
-
-  const inputDir = String(args._[0]);
-  const outputFile = String(args._[1]);
-
-  // 距離計算器を選択
-  const calculator: DistanceCalculator = getDistanceCalculator(args.distance);
-
-  // クラスタリングアルゴリズムを選択
-  const algorithm: ClusteringAlgorithm = getClusteringAlgorithm(
-    args.algorithm,
-    {
-      threshold: parseFloat(args.threshold),
-      k: parseInt(args.k),
-      epsilon: parseFloat(args.epsilon),
-      minPoints: parseInt(args["min-points"]),
-    },
-  );
-
-  // 1. ファイルをスキャン
-  console.log(`Scanning files in: ${inputDir}`);
-  const files = await scanFiles(inputDir);
-  console.log(`Found ${files.length} markdown files`);
-
-  // 2. IDを抽出
-  console.log("Extracting traceability IDs...");
-  const ids = await extractIds(files);
-  console.log(`Extracted ${ids.length} IDs`);
-
-  // 3. 距離行列を作成
-  console.log(`Calculating distance matrix using: ${calculator.name}`);
-  const matrix = createDistanceMatrix(
-    ids.map((id) => id.fullId),
-    calculator,
-  );
-
-  // 4. クラスタリング実行
-  console.log(`Clustering using: ${algorithm.name}`);
-  const clusters = algorithm.cluster(ids, matrix);
-  console.log(`Created ${clusters.length} clusters`);
-
-  // 5. 結果を出力
-  console.log(`Writing results to: ${outputFile}`);
-  await writeOutput(outputFile, {
-    clusters,
-    algorithm: algorithm.name,
-    distanceCalculator: calculator.name,
-  }, args.format);
-
-  console.log("Done!");
-}
-
-function getDistanceCalculator(name: string): DistanceCalculator {
-  switch (name) {
-    case "levenshtein":
-      return new LevenshteinDistance();
-    case "jaro-winkler":
-      return new JaroWinklerDistance();
-    case "cosine":
-      return new CosineDistance();
-    case "structural":
-      return new StructuralDistance();
-    default:
-      throw new Error(`Unknown distance calculator: ${name}`);
-  }
-}
-
-function getClusteringAlgorithm(
-  name: string,
-  options: any,
-): ClusteringAlgorithm {
-  switch (name) {
-    case "hierarchical":
-      return new HierarchicalClustering(options.threshold);
-    case "kmeans":
-      return new KMeansClustering(options.k);
-    case "dbscan":
-      return new DBSCANClustering(options.epsilon, options.minPoints);
-    default:
-      throw new Error(`Unknown clustering algorithm: ${name}`);
-  }
-}
-
-async function writeOutput(filePath: string, result: any, format: string) {
-  let content: string;
-
-  switch (format) {
-    case "json":
-      content = JSON.stringify(result, null, 2);
-      break;
-    case "markdown":
-      content = formatAsMarkdown(result);
-      break;
-    case "csv":
-      content = formatAsCsv(result);
-      break;
-    default:
-      throw new Error(`Unknown format: ${format}`);
-  }
-
-  await Deno.writeTextFile(filePath, content);
-}
-
-function formatAsMarkdown(result: any): string {
-  // Markdown形式でフォーマット
-  let md = `# Traceability ID Clustering Results\n\n`;
-  md += `- Algorithm: ${result.algorithm}\n`;
-  md += `- Distance Calculator: ${result.distanceCalculator}\n`;
-  md += `- Total Clusters: ${result.clusters.length}\n\n`;
-
-  result.clusters.forEach((cluster: any, index: number) => {
-    md += `## Cluster ${index + 1} (${cluster.items.length} items)\n\n`;
-    cluster.items.forEach((item: any) => {
-      md += `- \`${item.fullId}\` - ${item.filePath}:${item.lineNumber}\n`;
-    });
-    md += `\n`;
-  });
-
-  return md;
-}
-
-function formatAsCsv(result: any): string {
-  // CSV形式でフォーマット
-  let csv = "ClusterID,TraceabilityID,FilePath,LineNumber,Level,Scope,Semantic,Hash,Version\n";
-
-  result.clusters.forEach((cluster: any, clusterIndex: number) => {
-    cluster.items.forEach((item: any) => {
-      csv += `${
-        clusterIndex + 1
-      },${item.fullId},${item.filePath},${item.lineNumber},${item.level},${item.scope},${item.semantic},${item.hash},${item.version}\n`;
-    });
-  });
-
-  return csv;
-}
+export const command: CommandSpec<ClusterModeOptions> = {
+  usage: USAGE,
+  parse: parseClusterArgs,
+  run: (options) => runClusterMode(options),
+};
 
 if (import.meta.main) {
-  await main();
+  await main(command);
 }
 ```
+
+### cli/args.ts
+
+- `parseClusterArgs` / `parseSearchArgs` / `parseExtractArgs` / `parseGraphArgs` /
+  `parseAnalyzeArgs` / `parseListArgs` は `argv` を受け取り
+  `ParsedArgs<T> = { kind: "help" } | { kind: "run"; options: T }` を返す純粋関数
+- 位置引数はすべて `inputDir`（複数パス）、`--ext` は `parseExtensions` で配列化
+- 値の検証は `parseChoice` / `parseInteger` / `parseNumber`（`core/options.ts`）で行い、
+  未チェックのキャストや `NaN` を通さない
+- `--help` は必須引数の欠落より優先される
+
+### cli/runner.ts
+
+`runCommand(spec, argv)` は終了コードを返す。
+
+- help → USAGE と `EXIT CODES` セクションを STDOUT に出力し 0
+- 実行 → モードが返す `ModeOutcome` の終了コード（complete 0 / partial 1）
+- `TraceabilityError` → STDERR に `Error [<kind>]: <message>`、カテゴリの終了コード
+  （usage エラーは `Run with --help for usage.` も出力）
+- それ以外 → `Error: <message>`、終了コード 70（sysexits EX_SOFTWARE）
+
+extract コマンドは `--allow-missing` のとき partial を complete として扱う。
+
+`main(spec)` は `Deno.exit(await runCommand(spec, Deno.args))` を行う。
 
 ## ライブラリ使用例
 
@@ -560,8 +485,8 @@ import { LevenshteinDistance } from "./distance/levenshtein.ts";
 import { HierarchicalClustering } from "./clustering/hierarchical.ts";
 import { createDistanceMatrix } from "./distance/calculator.ts";
 
-// 1. ファイルをスキャン
-const files = await scanFiles("./data");
+// 1. ファイルをスキャン（複数パス・拡張子指定可。既定は md）
+const files = await scanFiles(["./docs", "./src"], ["md", "ts"]);
 
 // 2. IDを抽出
 const ids = await extractIds(files);
@@ -584,6 +509,22 @@ const clusters = algorithm.cluster(ids, matrix);
 // 7. 結果を利用
 console.log(clusters);
 ```
+
+## ライブラリAPI（src/mod.ts）
+
+`deno.json` の `exports` に `./mod`（`src/mod.ts`）があり、ライブラリとして
+次を公開する。
+
+- 型・関数: `scanFiles`, `extractIds`, 距離計算器、クラスタリングアルゴリズム、
+  フォーマッター、`searchSimilar` など
+- 各モード: `runClusterMode` / `runSearchMode` / `runExtractMode` / `runGraphMode` /
+  `runAnalyzeMode` / `runListMode` とそのオプション型、`InputSpec`
+- ID文法: `parseId`, `findIds`, `hasVersion`, `uniqueKeyOf`, `withVersion`,
+  `compareVersionsDesc`
+- オプション語彙: `DISTANCE_NAMES` などの const タプルと派生型、`VersionMatchMode`
+- extract: `IdsSource`, `resolveTargetId`, `IdMatchGroup`
+- イベント: `ModeEvent`, `ModeIO`, `consoleIO`, `describeEvent`
+- エラー: `TraceabilityError`, `ErrorDetail`, `ERROR_CATEGORIES`, `EXIT_CODES` など
 
 ## 類似度検索の実装
 
@@ -662,6 +603,7 @@ export function searchByKeyword(
 src/
 ├── extract/                  # コンテキスト抽出（新規）
 │   ├── context.ts           # ファイル検索とコンテキスト抽出ロジック
+│   ├── resolver.ts          # 要求IDの解決（バージョン指定 / 省略）
 │   └── loader.ts            # ID一覧の読み込み（コマンドライン or ファイル）
 ```
 
@@ -678,6 +620,8 @@ export interface ContextExtractionRequest {
   before: number;
   /** 該当行の後に取得する行数 */
   after: number;
+  /** バージョン省略IDの解決方法（latest | all、既定: latest） */
+  versions?: VersionMatchMode;
 }
 
 /**
@@ -700,8 +644,10 @@ export interface LocationContext {
  * ID ごとの抽出コンテキスト
  */
 export interface ExtractedContext {
-  /** 対象のID */
+  /** 一致した完全なID */
   id: string;
+  /** バージョン省略IDから解決された場合のみ、要求されたID */
+  query?: string;
   /** 該当箇所の配列（複数ファイルに出現する可能性） */
   locations: LocationContext[];
 }
@@ -743,32 +689,36 @@ export async function extractContext(
   const contexts: ExtractedContext[] = [];
   const notFound: string[] = [];
 
+  const mode = request.versions ?? "latest";
+
   // 各IDについて処理
   for (const targetId of request.ids) {
-    // 該当するIDを検索
-    const matchedIds = ids.filter((id) => id.fullId === targetId);
+    // 要求IDを完全IDごとのグループに解決（extract/resolver.ts）
+    const groups = resolveTargetId(targetId, ids, mode);
 
-    if (matchedIds.length === 0) {
+    if (groups.length === 0) {
       notFound.push(targetId);
       continue;
     }
 
-    // 各出現箇所についてコンテキストを抽出
-    const locations: LocationContext[] = [];
-    for (const matched of matchedIds) {
-      const context = await extractLocationContext(
-        matched.filePath,
-        matched.lineNumber,
-        request.before,
-        request.after,
-      );
-      locations.push(context);
-    }
+    for (const group of groups) {
+      // 各出現箇所についてコンテキストを抽出（ファイル読み込みは core/io.ts の readText）
+      const locations: LocationContext[] = [];
+      for (const matched of group.matches) {
+        locations.push(
+          await extractLocationContext(
+            matched.filePath,
+            matched.lineNumber,
+            request.before,
+            request.after,
+          ),
+        );
+      }
 
-    contexts.push({
-      id: targetId,
-      locations,
-    });
+      const extracted: ExtractedContext = { id: group.fullId, locations };
+      if (group.fullId !== targetId) extracted.query = targetId;
+      contexts.push(extracted);
+    }
   }
 
   return {
@@ -798,8 +748,8 @@ async function extractLocationContext(
   before = Math.min(before, MAX_LINES);
   after = Math.min(after, MAX_LINES);
 
-  // ファイル全体を読み込み
-  const content = await Deno.readTextFile(filePath);
+  // ファイル全体を読み込み（型付きエラー）
+  const content = await readText(filePath);
   const lines = content.split("\n");
 
   // 行番号を配列インデックスに変換（1-indexed → 0-indexed）
@@ -886,28 +836,40 @@ function removeConsecutiveEmptyLines(
 }
 ```
 
+### extract/resolver.ts
+
+`resolveTargetId(targetId, ids, mode)` は要求IDを完全IDごとのグループ
+（`IdMatchGroup { fullId, matches }`）に解決する純粋関数。
+
+- バージョン付き（`...#{version}`）: 完全一致のみ
+- バージョン省略: `uniqueKeyOf` が一致する出現を集め、`compareVersionsDesc` で並べる
+  - `latest`（既定）: 最新バージョンのみ
+  - `all`: すべてのバージョンを新しい順
+  - バージョンなしで書かれた参照は、どちらのモードでもバージョン付きの後に追加する
+
+解決された場合、出力には Markdown で `Resolved from: <要求ID>`、JSON で `query`
+フィールドが付く。
+
 ### extract/loader.ts
 
 ```typescript
+/** 要求IDの取得元 */
+export type IdsSource =
+  | { kind: "inline"; text: string } // --ids（空白区切り）
+  | { kind: "file"; path: string }; // --ids-file（1行1ID、空行は無視）
+
 /**
  * ID一覧を読み込む
- * @param source コマンドライン引数文字列、またはファイルパス
- * @returns ID配列
+ * @throws TraceabilityError PathNotFound | PathAccessDenied | FileReadFailed（file のみ）
  */
-export async function loadIds(
-  source: string,
-  isFile: boolean,
-): Promise<string[]> {
-  if (isFile) {
-    // ファイルから読み込み
-    const content = await Deno.readTextFile(source);
-    return content
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0);
-  } else {
-    // スペース区切りで分割
-    return source.split(/\s+/).filter((id) => id.length > 0);
+export async function loadIds(source: IdsSource): Promise<string[]> {
+  switch (source.kind) {
+    case "inline":
+      return parseInlineIds(source.text);
+    case "file":
+      return parseIdLines(await readText(source.path));
+    default:
+      return assertNever(source);
   }
 }
 ```
@@ -952,6 +914,9 @@ export function formatContextAsMarkdown(
  */
 function formatExtractedContextAsMarkdown(context: ExtractedContext): string {
   let md = `## ID: ${context.id}\n\n`;
+  if (context.query) {
+    md += `Resolved from: ${context.query}\n\n`;
+  }
 
   context.locations.forEach((location) => {
     md += `### Location: ${location.filePath}:${location.lineNumber}\n\n`;
@@ -1012,244 +977,71 @@ export function formatContextAsSimple(
 5. **フィルタリング** - 上位N件（オプション）
 6. **出力** - simple形式 or JSON形式
 
-### CLI実装の変更点（3モード対応）
+## モード実装（パイプラインとイベント）
+
+各モードは `runXxxMode(options, io: ModeIO = consoleIO)` として `src/modes/` に置かれる。
+オプションは `InputSpec`（`inputDir: string | string[]`, `extensions?: string[]`）を拡張する。
+
+共通ステップは `src/modes/pipeline.ts` にある。
+
+- `collectIds(input, io, emptyPolicy)` - スキャンとID抽出。
+  `ScanStarted` → `FilesScanned` → `IdsExtracted` を通知する
+  - `EmptyPolicy = "stop"`（既定）: ファイル0件で `Stopped(NoFiles)`、ID 0件で
+    `Stopped(NoIds)` を通知して `null` を返す（出力なし）
+  - `EmptyPolicy = "continue"`: 止まらず空の結果を返す（list mode が使用し、空の
+    インデックスを出力する）
+- `emitResult(io, content, outputFile?)` - ファイル書き込みなら `OutputWritten`、
+  STDOUT 出力なら `OutputPrinted` を通知する
+
+モードはログ文字列を直接書かず、型付きの `ModeEvent`（`src/core/events.ts`）を
+`io.report()` に渡す。`consoleIO` は `describeEvent()` で進捗行に変換して **STDERR**
+に、結果を `io.print()` 経由で **STDOUT** に出す。テストでは記録用の `ModeIO` を
+注入し、イベント順序を検証する。
 
 ```typescript
-// src/cli.ts に追加
-
-async function main() {
-  const args = parseArgs(Deno.args, {
-    string: [
-      "mode", // cluster | search | extract
-      "query", // 検索クエリ（search モード）
-      "top", // 上位N件（search モード）
-      "ids", // ID一覧（extract モード）
-      "ids-file", // IDファイル（extract モード）
-      "before", // 前N行（extract モード）
-      "after", // 後M行（extract モード）
-      "algorithm",
-      "distance",
-      "format",
-      "threshold",
-      "k",
-      "epsilon",
-      "min-points",
-    ],
-    boolean: ["help", "show-distance"],
-    default: {
-      mode: "cluster",
-      algorithm: "hierarchical",
-      distance: "levenshtein",
-      format: "simple",
-      before: "3",
-      after: "10",
-      threshold: "10",
-      k: "0",
-      epsilon: "0.3",
-      "min-points": "2",
-    },
-  });
-
-  // ヘルプ表示
-  if (args.help) {
-    showUsage();
-    Deno.exit(0);
-  }
-
-  // モード判定
-  if (args.mode === "search") {
-    // 類似度検索モード
-    if (!args.query) {
-      console.error("Error: --query is required in search mode");
-      Deno.exit(1);
-    }
-    await runSearchMode(args);
-  } else if (args.mode === "extract") {
-    // コンテキスト抽出モード（新機能）
-    if (!args.ids && !args["ids-file"]) {
-      console.error("Error: --ids or --ids-file is required in extract mode");
-      Deno.exit(1);
-    }
-    await runExtractMode(args);
-  } else {
-    // クラスタリングモード（デフォルト）
-    await runClusterMode(args);
-  }
-}
-
-async function runSearchMode(args: any) {
-  // 1-2. ファイルスキャン & ID抽出（同じ）
-  const files = await scanFiles(inputDir);
-  const ids = await extractIds(files);
-
-  // 3. 距離計算器を選択
-  const calculator = getDistanceCalculator(args.distance);
-
-  // 4. 類似度検索を実行
-  const result = searchSimilar(
-    args.query,
-    ids,
-    calculator,
-    { top: args.top ? parseInt(args.top) : undefined },
-  );
-
-  // 5. 結果を出力
-  const content = formatSearchResult(
-    result,
-    args.format,
-    args["show-distance"],
-  );
-  await Deno.writeTextFile(outputFile, content);
-}
-
-async function runExtractMode(args: any) {
-  try {
-    console.log(`Extract mode`);
-
-    // 1. ID一覧を読み込み
-    const targetIds = await loadIds(
-      args.ids || args["ids-file"],
-      Boolean(args["ids-file"]),
-    );
-    console.log(`Target IDs: ${targetIds.length}`);
-
-    // 2. ファイルスキャン & ID抽出
-    console.log(`Scanning files in: ${inputDir}`);
-    const files = await scanFiles(inputDir);
-    console.log(`Found ${files.length} markdown files`);
-
-    console.log("Extracting traceability IDs...");
-    const ids = await extractIds(files);
-    console.log(`Extracted ${ids.length} IDs`);
-
-    // 3. コンテキスト抽出を実行
-    console.log("Extracting context...");
-    const request: ContextExtractionRequest = {
-      ids: targetIds,
-      before: parseInt(args.before),
-      after: parseInt(args.after),
-    };
-    const result = await extractContext(request, ids);
-    console.log(`Found ${result.contexts.length} IDs`);
-    console.log(`Not found: ${result.notFound.length} IDs`);
-
-    // 4. 結果を出力
-    console.log(`Writing results to: ${outputFile}`);
-    const content = formatContextResult(result, args.format);
-    await Deno.writeTextFile(outputFile, content);
-
-    console.log("Done!");
-  } catch (error) {
-    console.error(
-      `Error: ${error instanceof Error ? error.message : String(error)}`,
-    );
-    Deno.exit(1);
-  }
-}
-
-function formatContextResult(
-  result: ContextExtractionResult,
-  format: string,
-): string {
-  switch (format) {
-    case "json":
-      return formatContextAsJson(result);
-    case "markdown":
-      return formatContextAsMarkdown(result);
-    case "simple":
-      return formatContextAsSimple(result);
-    default:
-      return formatContextAsMarkdown(result);
-  }
+export interface ModeIO {
+  report(event: ModeEvent): void; // 進捗イベント
+  print(content: string): void; // 結果の標準出力
 }
 ```
 
-### ヘルプメッセージへの追加
+| モード  | イベント列                                                                                                                                  |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| cluster | ModeStarted → CalculatorSelected → AlgorithmSelected → (collectIds) → DistanceMatrixBuilt → ClustersFormed → Output*                        |
+| search  | ModeStarted → CalculatorSelected → (collectIds) → SearchCompleted → Output*                                                                 |
+| extract | ModeStarted → TargetsLoaded → (collectIds) → ContextsResolved → Output*                                                                     |
+| graph   | ModeStarted → CalculatorSelected → AlgorithmSelected → (collectIds) → DistanceMatrixBuilt → ClustersFormed → GraphBuilt → Output*           |
+| analyze | ModeStarted → CalculatorSelected → AlgorithmSelected → (collectIds) → DistanceMatrixBuilt → ClustersFormed → AnalysisCompleted ×4 → Output* |
+| list    | ModeStarted → (collectIds, continue) → Output*（バッチごとに1回）                                                                           |
 
-```typescript
-function showUsage() {
-  console.log(`
-USAGE:
-  deno run --allow-read [--allow-write] src/cli.ts <input-dir> <output-file> [options]
+## エラー処理
 
-ARGUMENTS:
-  <input-dir>     Directory to scan for .md files (recursively scanned)
-  <output-file>   Path where results will be written
+すべてのエラーは `TraceabilityError`（`src/core/errors.ts`）であり、判別共用体
+`ErrorDetail` を持つ。呼び出し側は `error.kind` / `error.detail` で分岐する
+（`isTraceabilityError(e, "PathNotFound")` で型を絞り込める）。
 
-GLOBAL OPTIONS:
-  --mode <mode>           Execution mode (default: cluster)
-                          • cluster - Group similar IDs into clusters
-                          • search  - Find IDs similar to a query
-                          • extract - Extract context around specific IDs (NEW)
+終了コードは `grep` / `diff` の慣例に従い、0 と 1 を「結果」、2 以上を「失敗」とする。
 
-  --format <format>       Output format (default: simple)
-                          • simple           - Simple output
-                          • json            - Full structured data
-                          • markdown        - Human-readable report
+| 区分       | 終了コード | 内容                                                               |
+| ---------- | ---------- | ------------------------------------------------------------------ |
+| complete   | 0          | 成功（指定したものがすべて見つかった）                             |
+| partial    | 1          | extract で一部の ID が見つからない（見つかった分は出力する）       |
+| usage      | 2          | MissingArgument, EmptyIdList, InvalidOptionValue, InvalidParameter |
+| input      | 3          | PathNotFound, PathAccessDenied, ScanFailed, FileReadFailed         |
+| output     | 4          | FileWriteFailed                                                    |
+| external   | 5          | ExternalCommandFailed                                              |
+| unexpected | 70         | `TraceabilityError` 以外                                           |
 
-  --help                  Show this help message
+- モードは `ModeOutcome`（`src/core/outcome.ts`）を返す。`partial` の `missing` は
+  `NonEmptyArray<string>` 型で、空の partial は表現できない
+- アルゴリズムの数値パラメータは `requireParameter()`（`src/core/params.ts`）で
+  `ParameterRule` に照らして検証し、NaN・無限大・範囲外は `InvalidParameter` にする
 
-CLUSTERING MODE OPTIONS:
-  (same as before...)
-
-SEARCH MODE OPTIONS:
-  (same as before...)
-
-EXTRACT MODE OPTIONS (NEW):
-  --ids <string>          Space-separated list of IDs to extract
-                          Example: "req:apikey:security-4f7b2e#20251111a req:auth:login-abc123#v1"
-
-  --ids-file <path>       Path to file containing IDs (one per line)
-                          Alternative to --ids option
-
-  --before <number>       Number of lines before target line (default: 3)
-                          Context lines to include before the matched line
-
-  --after <number>        Number of lines after target line (default: 10)
-                          Context lines to include after the matched line
-
-EXTRACT MODE EXAMPLES (NEW):
-
-  # Extract context for a single ID
-  deno run --allow-read src/cli.ts ./docs ./output/context.md \\
-    --mode extract \\
-    --ids "req:apikey:security-4f7b2e#20251111a" \\
-    --before 3 \\
-    --after 10
-
-  # Extract context for multiple IDs
-  deno run --allow-read src/cli.ts ./docs ./output/context.md \\
-    --mode extract \\
-    --ids "req:apikey:security-4f7b2e#20251111a req:apikey:encryption-6d3a9c#20251111a"
-
-  # Extract from ID list file
-  deno run --allow-read src/cli.ts ./docs ./output/context.md \\
-    --mode extract \\
-    --ids-file ./ids-to-extract.txt \\
-    --before 5 \\
-    --after 15
-
-  # Output as JSON
-  deno run --allow-read src/cli.ts ./docs ./output/context.json \\
-    --mode extract \\
-    --ids "req:apikey:security-4f7b2e#20251111a" \\
-    --format json
-
-  # Pipeline: search then extract
-  # 1. Search for similar IDs
-  deno run --allow-read --allow-write src/cli.ts ./docs ./tmp/similar.txt \\
-    --mode search \\
-    --query "security" \\
-    --top 5 \\
-    --format simple
-
-  # 2. Extract context for found IDs
-  deno run --allow-read src/cli.ts ./docs ./output/context.md \\
-    --mode extract \\
-    --ids-file ./tmp/similar.txt
-  `);
-}
-```
+- ファイルの読み書きは `src/core/io.ts`（`readText` / `writeText`）を経由し、
+  Deno のエラーを `fromReadError()` で型付きエラーに変換する
+- メッセージは `describeError(detail)` が生成し、kind ごとの網羅性は `assertNever`
+  でコンパイル時に保証する
+- CLI の `--help` の末尾には `exitCodesHelp()` による `EXIT CODES` セクションが付く
 
 ## 拡張性
 
@@ -1261,15 +1053,19 @@ EXTRACT MODE EXAMPLES (NEW):
 
 インターフェースを守れば、既存コードの変更なしに追加可能。
 
-### 3つのモードの独立性と役割
+### モードの独立性と役割
 
-| モード      | 役割               | 入力         | 処理                          | 出力                      |
-| ----------- | ------------------ | ------------ | ----------------------------- | ------------------------- |
-| **cluster** | IDをグループ化     | ディレクトリ | 距離行列作成 + クラスタリング | クラスタ化されたID一覧    |
-| **search**  | 類似IDを探す       | クエリ文字列 | 距離計算（クエリ vs 全ID）    | 類似度順のID一覧          |
-| **extract** | IDの使用箇所を探す | ID一覧       | ファイル検索（grep的）        | 該当箇所 + 前後のテキスト |
+| モード      | 役割                   | 入力         | 処理                             | 出力                      |
+| ----------- | ---------------------- | ------------ | -------------------------------- | ------------------------- |
+| **cluster** | IDをグループ化         | 入力パス     | 距離行列作成 + クラスタリング    | クラスタ化されたID一覧    |
+| **search**  | 類似IDを探す           | クエリ文字列 | 距離計算（クエリ vs 全ID）       | 類似度順のID一覧          |
+| **extract** | IDの使用箇所を探す     | ID一覧       | ファイル検索（grep的）           | 該当箇所 + 前後のテキスト |
+| **graph**   | IDの関係を可視化       | 入力パス     | 距離行列 + クラスタ + レイアウト | 3D グラフ HTML            |
+| **analyze** | ドキュメント品質を分析 | 入力パス     | 構造・詳細度・重複・欠落の分析   | Markdown レポート         |
+| **list**    | ID索引を作る           | 入力パス     | fullId ごとに出現箇所を集約      | JSON / simple / CSV 索引  |
 
-各モードは互いに影響を与えず、独立して拡張・保守可能。
+各モードは互いに影響を与えず、独立して拡張・保守可能。共通処理は
+`modes/pipeline.ts` に集約されている。
 
 ### パイプライン的な使用
 
@@ -1281,33 +1077,6 @@ EXTRACT MODE EXAMPLES (NEW):
    見つかったIDの実際の使用箇所を検索
 3. **extract のみ**: 既知のIDリストの使用箇所を一括で grep 的に検索
 
-## モジュール構成の全体像（新機能含む）
+## モジュール構成の全体像
 
-```
-src/
-├── core/
-│   ├── types.ts              # 共通型定義（新型追加）
-│   ├── extractor.ts          # ID抽出
-│   └── scanner.ts            # ファイルスキャン
-├── distance/
-│   ├── calculator.ts         # 距離計算インターフェース
-│   ├── levenshtein.ts        # レーベンシュタイン距離
-│   ├── jaro_winkler.ts       # ジャロ・ウィンクラー距離
-│   ├── cosine.ts             # コサイン類似度
-│   └── structural.ts         # 構造的類似度
-├── clustering/
-│   ├── algorithm.ts          # クラスタリングインターフェース
-│   ├── hierarchical.ts       # 階層的クラスタリング
-│   ├── kmeans.ts             # K-Means
-│   └── dbscan.ts             # DBSCAN
-├── search/
-│   └── similarity.ts         # 類似度検索実装
-├── extract/                  # コンテキスト抽出（新規）
-│   ├── context.ts           # コンテキスト抽出ロジック
-│   └── loader.ts            # ID一覧の読み込み
-├── formatter/
-│   ├── formatter.ts          # 出力フォーマッター（context対応追加）
-│   └── simple.ts             # シンプル形式
-├── cli.ts                    # CLIエントリポイント（3モード対応）
-└── mod.ts                    # ライブラリエントリポイント（新エクスポート追加）
-```
+冒頭の「モジュール構成」を参照。
