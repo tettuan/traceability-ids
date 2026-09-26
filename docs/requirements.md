@@ -16,6 +16,7 @@
 - ファイルを明示指定した場合は、拡張子に関係なく常に対象に含める
 - 同じファイルは重複して扱わない（指定順を保持）
 - 存在しないパスは `PathNotFound` エラーとする
+- `--skip-frontmatter` を指定すると、frontmatter（先頭の `---` 行から次の `---` または `...` 行まで）の ID を抽出しない。閉じ行がないブロックは frontmatter とみなさない。本文の ID の行番号は元ファイルの行のまま（Issue #1）
 - ファイルパスを記録する
 - 全モード（cluster / search / extract / graph / analyze / list）で共通
 
@@ -414,6 +415,7 @@ deno run --allow-read src/cli.ts ./data ./output/context.md \
 - 出力フォーマットの選択（JSON/Markdown/CSV）
 - アルゴリズム固有のパラメータ
 - 走査対象の拡張子（`--ext`、既定: md）
+- frontmatter を抽出対象から外す（`--skip-frontmatter`、既定: 含める）
 
 受け付ける値は `src/core/options.ts` で定義し、範囲外の値はエラーとする。
 

@@ -68,19 +68,20 @@ graph.ts              # CLIエントリポイント
 
 ## CLIオプション
 
-| オプション         | 説明                             | デフォルト          | 値                                            |
-| ------------------ | -------------------------------- | ------------------- | --------------------------------------------- |
-| `--output`         | 出力HTMLファイルパス             | `tmp/graph-3d.html` | ファイルパス                                  |
-| `--distance`       | 距離計算手法                     | `structural`        | levenshtein, jaro-winkler, cosine, structural |
-| `--algorithm`      | クラスタリングアルゴリズム       | `hierarchical`      | hierarchical, kmeans, dbscan                  |
-| `--threshold`      | クラスタリング閾値               | `0.3`               | 数値                                          |
-| `--edge-threshold` | エッジ表示閾値                   | `0.5`               | 数値 (0-1)                                    |
-| `--color-by`       | 色分けモード                     | `cluster`           | cluster, scope, level                         |
-| `--layout`         | レイアウトモード                 | `force`             | force, mds                                    |
-| `--k`              | K-Meansクラスタ数                | `0` (自動)          | 数値                                          |
-| `--epsilon`        | DBSCAN近傍半径                   | `0.3`               | 数値                                          |
-| `--min-points`     | DBSCAN最小ポイント数             | `2`                 | 数値                                          |
-| `--ext`            | 走査対象の拡張子（カンマ区切り） | `md`                | 例: md,rs,ts                                  |
+| オプション           | 説明                             | デフォルト          | 値                                            |
+| -------------------- | -------------------------------- | ------------------- | --------------------------------------------- |
+| `--output`           | 出力HTMLファイルパス             | `tmp/graph-3d.html` | ファイルパス                                  |
+| `--distance`         | 距離計算手法                     | `structural`        | levenshtein, jaro-winkler, cosine, structural |
+| `--algorithm`        | クラスタリングアルゴリズム       | `hierarchical`      | hierarchical, kmeans, dbscan                  |
+| `--threshold`        | クラスタリング閾値               | `0.3`               | 数値                                          |
+| `--edge-threshold`   | エッジ表示閾値                   | `0.5`               | 数値 (0-1)                                    |
+| `--color-by`         | 色分けモード                     | `cluster`           | cluster, scope, level                         |
+| `--layout`           | レイアウトモード                 | `force`             | force, mds                                    |
+| `--k`                | K-Meansクラスタ数                | `0` (自動)          | 数値                                          |
+| `--epsilon`          | DBSCAN近傍半径                   | `0.3`               | 数値                                          |
+| `--min-points`       | DBSCAN最小ポイント数             | `2`                 | 数値                                          |
+| `--ext`              | 走査対象の拡張子（カンマ区切り） | `md`                | 例: md,rs,ts                                  |
+| `--skip-frontmatter` | frontmatter 内の ID を抽出しない | `false`             | Boolean                                       |
 
 入力は1つ以上のパス（`<input-path...>`）。ディレクトリは再帰的に走査し、明示した
 ファイルは拡張子に関係なく対象に含める。

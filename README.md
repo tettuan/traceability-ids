@@ -311,13 +311,19 @@ The report analyzes 4 dimensions:
 
 ### Common Options (all modes)
 
-| Option            | Description                                                  | Default | Values                     |
-| ----------------- | ------------------------------------------------------------ | ------- | -------------------------- |
-| `<input-path...>` | Directories or files to scan (one or more, dirs recursively) | -       | Paths (e.g. `.specs src`)  |
-| `--ext`           | File extensions to scan, comma-separated                     | `md`    | e.g. `md,rs,ts,tsx,mjs,sh` |
+| Option               | Description                                                    | Default | Values                     |
+| -------------------- | -------------------------------------------------------------- | ------- | -------------------------- |
+| `<input-path...>`    | Directories or files to scan (one or more, dirs recursively)   | -       | Paths (e.g. `.specs src`)  |
+| `--ext`              | File extensions to scan, comma-separated                       | `md`    | e.g. `md,rs,ts,tsx,mjs,sh` |
+| `--skip-frontmatter` | Ignore IDs in the frontmatter (leading `---` block); body only | `false` | Boolean                    |
 
 A path that does not exist is a `PathNotFound` error (exit code 3) naming that path. Files given
 explicitly are scanned regardless of `--ext`.
+
+Frontmatter is a block at the very start of a file that opens with a `---` line and
+closes with the next `---` or `...` line (an unclosed block is not frontmatter).
+With `--skip-frontmatter`, IDs inside it are not extracted; line numbers of body IDs
+stay those of the original file.
 
 ### Cluster Mode Options
 

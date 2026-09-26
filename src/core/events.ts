@@ -9,7 +9,7 @@
  */
 
 import { assertNever } from "./errors.ts";
-import type { AlgorithmName, DistanceName } from "./options.ts";
+import type { AlgorithmName, DistanceName, FrontmatterPolicy } from "./options.ts";
 
 /** Name of a mode */
 export type ModeName = "cluster" | "search" | "extract" | "graph" | "analyze" | "list";
@@ -26,7 +26,12 @@ export type ModeEvent =
   | { type: "CalculatorSelected"; name: DistanceName }
   | { type: "AlgorithmSelected"; name: AlgorithmName }
   | { type: "TargetsLoaded"; count: number }
-  | { type: "ScanStarted"; paths: readonly string[]; extensions: readonly string[] }
+  | {
+    type: "ScanStarted";
+    paths: readonly string[];
+    extensions: readonly string[];
+    frontmatter: FrontmatterPolicy;
+  }
   | { type: "FilesScanned"; count: number }
   | { type: "IdsExtracted"; total: number; unique: number }
   | { type: "Stopped"; reason: EmptyReason }
@@ -75,7 +80,8 @@ export function describeEvent(event: ModeEvent): string {
     case "TargetsLoaded":
       return `Target IDs: ${event.count}`;
     case "ScanStarted":
-      return `Scanning ${event.paths.join(", ")} (${event.extensions.join(",")})`;
+      return `Scanning ${event.paths.join(", ")} (${event.extensions.join(",")}` +
+        `${event.frontmatter === "skip" ? ", skipping frontmatter" : ""})`;
     case "FilesScanned":
       return `Found ${event.count} files`;
     case "IdsExtracted":

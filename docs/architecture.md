@@ -96,6 +96,7 @@ analyze は既定のファイルに出力）。
 
 - **`--ext <list>`** - 走査対象の拡張子（カンマ区切り、デフォルト: `md`）
   - 例: `md,rs,ts,tsx,mjs,sh`（先頭ドットは有無を問わない）
+- **`--skip-frontmatter`** - frontmatter 内の ID を抽出しない（`FrontmatterPolicy`: `include` / `skip`、判定は `src/core/frontmatter.ts`）
 
 - **`--output <file>`** - 出力先ファイルパス（デフォルト: STDOUT）
 

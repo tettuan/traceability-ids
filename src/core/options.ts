@@ -53,6 +53,14 @@ export const VERSION_MATCH_MODES = ["latest", "all"] as const;
  */
 export type VersionMatchMode = typeof VERSION_MATCH_MODES[number];
 
+/** How frontmatter is treated when extracting IDs */
+export const FRONTMATTER_POLICIES = ["include", "skip"] as const;
+/**
+ * How frontmatter is treated when extracting IDs:
+ * `include` extracts from the whole file, `skip` only from the body after the frontmatter
+ */
+export type FrontmatterPolicy = typeof FRONTMATTER_POLICIES[number];
+
 /** Node coloring modes of graph mode */
 export const COLOR_MODES = ["cluster", "scope", "level"] as const;
 /** Node coloring mode of graph mode */
