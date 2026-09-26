@@ -13,6 +13,10 @@
 - Deno 最新版, JSR公開
 - Pure TypeScript
 
+# 開発方針
+
+型化・全域性・SSoT を守る。詳細は docs/architecture.md「開発方針」。
+
 # プロジェクト構造
 
 - data: サンプルデータ

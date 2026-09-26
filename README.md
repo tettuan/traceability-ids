@@ -76,9 +76,16 @@ list sorted by similarity**. This enables:
   - Declared relations `derived_from` / `trace_to` drawn as arrows, broken links reported
   - Rectangle selection and keyboard navigation
 
+- **Relations as Data** (`/relations`)
+  - `derived_from` / `trace_to` declarations, one row per declaration with `file:line`
+  - Filter by IDs and direction (`in` / `out` / `both`), by relation kind
+  - Broken relations with their reason: `NodeMissing` or `VersionMissing`
+  - simple, TSV and JSON output
+
 - **ID Index / Listing** (`/list`)
   - Extract all IDs with occurrence information (file + line)
-  - JSON, simple, and CSV output formats
+  - Narrow to given IDs (`--ids`), count occurrences per file or per ID
+  - JSON, simple, CSV, locations and count output formats
   - Sort by fullId, scope, level, or occurrence count
   - Batch splitting for large datasets
 
@@ -96,16 +103,23 @@ list sorted by similarity**. This enables:
 ## Traceability ID Format
 
 ```
-{level}:{scope}:{semantic}-{hash}[#{version}]
+{level}:{scope}:{semantic}[-{hash}][#{version}]
 ```
 
 ### Components
 
 - `{level}`: String before the first colon
 - `{scope}`: String between first and second colon
-- `{semantic}`: String from second colon to the last hyphen
-- `{hash}`: String from the last hyphen to the hash symbol
+- `{semantic}`: String from second colon to the last hyphen (to the end when there is no hash)
+- `{hash}`: String from the last hyphen to the hash symbol, when it has the hash form
 - `{version}`: String after the hash symbol (optional)
+
+The last hyphenated segment is the hash only when it has the hash form: by default
+6 lowercase letters or digits with at least one digit (`3kd92z`, `4f7b2e`). Otherwise
+the ID has no hash and the segment belongs to the semantic:
+`req:auth:login-flow` is semantic `login-flow`, hash `""`. `--hash-pattern` changes the
+form; `--require-hash` excludes IDs without a hash. An ID needs a hyphen after the
+second colon: `req:auth:login` is not an ID.
 
 ### Example
 
@@ -285,6 +299,32 @@ traceability:
 
 See [docs/trace-relations.md](docs/trace-relations.md) for the full definition.
 
+### Relations Mode
+
+Use the `/relations` subpath to get declared relations as data:
+
+```bash
+# Who refers to an ID (one row per declaration)
+deno run --allow-read jsr:@aidevtool/traceability-ids/relations \
+  --ids req:auth:login-flow-1a2b3c --direction in ./docs
+# → docs/b.md:6: req:auth:session-timeout-4d5e6f#20260201 -derived_from-> req:auth:login-flow-1a2b3c
+
+# What an ID depends on, as TSV (direction, kind, source, target, file:line, reason)
+deno run --allow-read jsr:@aidevtool/traceability-ids/relations \
+  --ids req:auth:session-timeout-4d5e6f --direction out --format tsv ./docs
+
+# Broken relations, with the reason
+deno run --allow-read jsr:@aidevtool/traceability-ids/relations --broken ./docs
+# → docs/b.md:8: … -trace_to-> req:auth:login-flow-1a2b3c#20251201 (version not found: node exists with 20260101, no version)
+# → docs/b.md:9: … -trace_to-> req:auth:missing-node-000000 (node not found)
+```
+
+- Without `--ids`, every declaration is output. `--direction` requires `--ids`.
+- By default only declarations whose target is found are output; `--broken` outputs only
+  the others.
+- A requested ID that is neither an item nor a declared target is not found: exit 1
+  (`--allow-missing` → 0).
+
 ### List Mode
 
 Use the `/list` subpath to extract all IDs with occurrence information:
@@ -308,7 +348,20 @@ deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/list \
 # Batch split (100 IDs per file)
 deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids/list \
   ./data --output tmp/ids.json --batch-size 100
+
+# Where one ID occurs, every version: "{count} {filePath}" per file
+deno run --allow-read jsr:@aidevtool/traceability-ids/list \
+  --ids req:auth:login-flow-1a2b3c --versions all --format locations ./docs
+# → 1 docs/a.md
+# → 4 docs/b.md
+
+# Occurrences per ID: "{count} {fullId}"
+deno run --allow-read jsr:@aidevtool/traceability-ids/list \
+  --ids req:auth:login-flow-1a2b3c --format count ./docs
 ```
+
+`locations` adds up the occurrences of every selected ID per file (like `grep -c`);
+use `count` for counts per ID. A requested ID that is not found makes the exit code 1.
 
 ### Analyze Mode
 
@@ -338,11 +391,16 @@ The report analyzes 4 dimensions:
 
 ### Common Options (all modes)
 
-| Option               | Description                                                        | Default | Values                     |
-| -------------------- | ------------------------------------------------------------------ | ------- | -------------------------- |
-| `<input-path...>`    | Directories or files to scan (one or more, dirs recursively)       | -       | Paths (e.g. `.specs src`)  |
-| `--ext`              | File extensions to scan, comma-separated                           | `md`    | e.g. `md,rs,ts,tsx,mjs,sh` |
-| `--skip-frontmatter` | Read the body only, ignoring the frontmatter (leading `---` block) | `false` | Boolean                    |
+| Option               | Description                                                        | Default                         | Values                     |
+| -------------------- | ------------------------------------------------------------------ | ------------------------------- | -------------------------- |
+| `<input-path...>`    | Directories or files to scan (one or more, dirs recursively)       | -                               | Paths (e.g. `.specs src`)  |
+| `--ext`              | File extensions to scan, comma-separated                           | `md`                            | e.g. `md,rs,ts,tsx,mjs,sh` |
+| `--skip-frontmatter` | Read the body only, ignoring the frontmatter (leading `---` block) | `false`                         | Boolean                    |
+| `--hash-pattern`     | Hash form of the last segment (regular expression, matched whole)  | `(?=[a-z0-9]*[0-9])[a-z0-9]{6}` | e.g. `[0-9a-f]{6}`         |
+| `--require-hash`     | Exclude IDs without a hash                                         | `false`                         | Boolean                    |
+
+An option a command does not accept is an `UnknownOption` error (exit code 2). `-h` is
+`--help`.
 
 A path that does not exist is a `PathNotFound` error (exit code 3) naming that path. Files given
 explicitly are scanned regardless of `--ext`.
@@ -376,6 +434,10 @@ extracted; line numbers of body IDs stay those of the original file.
 | `--top`           | Return only top N results | all      | Number                                                |
 | `--show-distance` | Include distance scores   | `false`  | Boolean                                               |
 | `--format`        | Output format             | `simple` | `simple`, `json`, `markdown`, `csv`                   |
+
+The `simple` format prints only IDs, one per line (`{id}\t{distance}` with
+`--show-distance`), so `| head -1` or `| xargs` get an ID. The query and the number of
+results are reported on STDERR.
 
 ### Extract Mode Options (`/extract`)
 
@@ -412,14 +474,32 @@ version, newest first (`all`). Versions are compared with digit runs as numbers.
 | `--versions`       | Resolution of relation targets without version | `latest`            | `latest`, `all`                                       |
 | `--allow-missing`  | Exit 0 even with broken relation links         | `false`             | Boolean                                               |
 
+### Relations Mode Options (`/relations`)
+
+| Option            | Description                                         | Default  | Values                     |
+| ----------------- | --------------------------------------------------- | -------- | -------------------------- |
+| `--ids`           | Only relations touching these IDs (space-separated) | all      | String                     |
+| `--ids-file`      | Path to file with IDs                               | -        | File path                  |
+| `--direction`     | Seen from `--ids` (requires `--ids`)                | `both`   | `in`, `out`, `both`        |
+| `--kind`          | Relation fields (repeatable or comma-separated)     | all      | `derived_from`, `trace_to` |
+| `--broken`        | Only relations whose target is not found            | `false`  | Boolean                    |
+| `--format`        | Output format                                       | `simple` | `simple`, `tsv`, `json`    |
+| `--output`        | Output file path                                    | STDOUT   | File path                  |
+| `--versions`      | Resolution of IDs and targets without version       | `latest` | `latest`, `all`            |
+| `--allow-missing` | Exit 0 even when some IDs are not found             | `false`  | Boolean                    |
+
 ### List Mode Options (`/list`)
 
-| Option         | Description        | Default  | Values                              |
-| -------------- | ------------------ | -------- | ----------------------------------- |
-| `--output`     | Output file path   | STDOUT   | File path                           |
-| `--format`     | Output format      | `json`   | `json`, `simple`, `csv`             |
-| `--sort`       | Sort order         | `fullId` | `fullId`, `scope`, `level`, `count` |
-| `--batch-size` | IDs per batch file | `0`      | Number (0 = no split)               |
+| Option            | Description                             | Default  | Values                                        |
+| ----------------- | --------------------------------------- | -------- | --------------------------------------------- |
+| `--output`        | Output file path                        | STDOUT   | File path                                     |
+| `--format`        | Output format                           | `json`   | `json`, `simple`, `csv`, `locations`, `count` |
+| `--sort`          | Sort order                              | `fullId` | `fullId`, `scope`, `level`, `count`           |
+| `--batch-size`    | IDs per batch file                      | `0`      | Number (0 = no split)                         |
+| `--ids`           | Only these IDs (space-separated)        | all      | String                                        |
+| `--ids-file`      | Path to file with IDs                   | -        | File path                                     |
+| `--versions`      | Resolution of IDs without version       | `latest` | `latest`, `all`                               |
+| `--allow-missing` | Exit 0 even when some IDs are not found | `false`  | Boolean                                       |
 
 ### Analyze Mode Options (`/analyze`)
 
@@ -441,15 +521,15 @@ above are failures. Every failure is a `TraceabilityError` with a typed
 `detail.kind`; the CLI prints `Error [<kind>]: <message>` to STDERR and exits with
 the code of the kind's category.
 
-| Exit | Meaning    | Details                                                                                                |
-| ---- | ---------- | ------------------------------------------------------------------------------------------------------ |
-| 0    | complete   | Success (everything requested was found)                                                               |
-| 1    | partial    | `/extract`: some requested IDs were not found; `/graph`: broken relation links (`--allow-missing` → 0) |
-| 2    | usage      | `MissingArgument`, `EmptyIdList`, `InvalidOptionValue`, `InvalidParameter`                             |
-| 3    | input      | `PathNotFound`, `PathAccessDenied`, `ScanFailed`, `FileReadFailed`                                     |
-| 4    | output     | `FileWriteFailed`                                                                                      |
-| 5    | external   | `ExternalCommandFailed`                                                                                |
-| 70   | unexpected | Anything that is not a `TraceabilityError` (sysexits EX_SOFTWARE)                                      |
+| Exit | Meaning    | Details                                                                                                                       |
+| ---- | ---------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| 0    | complete   | Success (everything requested was found)                                                                                      |
+| 1    | partial    | `/extract`, `/list`, `/relations`: some requested IDs were not found; `/graph`: broken relation links (`--allow-missing` → 0) |
+| 2    | usage      | `MissingArgument`, `EmptyIdList`, `UnknownOption`, `InvalidOptionValue`, `InvalidParameter`                                   |
+| 3    | input      | `PathNotFound`, `PathAccessDenied`, `ScanFailed`, `FileReadFailed`                                                            |
+| 4    | output     | `FileWriteFailed`                                                                                                             |
+| 5    | external   | `ExternalCommandFailed`                                                                                                       |
+| 70   | unexpected | Anything that is not a `TraceabilityError` (sysexits EX_SOFTWARE)                                                             |
 
 With exit 1, the found IDs are still printed. Modes return a `ModeOutcome`
 (`{ status: "complete" }` or `{ status: "partial", missing }`).
@@ -589,6 +669,7 @@ deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids --help
 ├── graph.ts                 # Graph mode entry point
 ├── analyze.ts               # Analyze mode entry point
 ├── list.ts                  # List mode entry point
+├── relations.ts             # Relations mode entry point
 ├── data/                    # Sample data
 ├── docs/                    # Documentation
 │   ├── requirements.md      # Requirements
@@ -603,6 +684,7 @@ deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids --help
     │   ├── args.ts          # Pure argument parsers → typed mode options
     │   ├── runner.ts        # Help, run, error → exit code
     │   ├── help.ts          # Help text of shared options
+    │   ├── issues.test.ts   # Acceptance tests of issues, run as CLI commands
     │   └── *-factory.ts     # Distance / clustering factories
     ├── core/                # Core functionality
     │   ├── types.ts         # Result type definitions
@@ -616,7 +698,8 @@ deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids --help
     │   └── extractor.ts     # ID extractor
     ├── relations/           # derived_from / trace_to
     │   ├── extract.ts       # Read declarations from YAML regions
-    │   └── resolve.ts       # Resolve targets, find broken links
+    │   ├── resolve.ts       # Resolve targets, broken links and their reasons
+    │   └── select.ts        # Select declarations by IDs and direction
     ├── distance/            # Distance calculation
     │   ├── calculator.ts    # Interface & matrix creation
     │   ├── levenshtein.ts   # Levenshtein distance
@@ -647,10 +730,12 @@ deno run --allow-read --allow-write jsr:@aidevtool/traceability-ids --help
     │   ├── extract.ts       # Extract mode
     │   ├── graph.ts         # Graph mode
     │   ├── analyze.ts       # Analyze mode
-    │   └── list.ts          # List mode
+    │   ├── list.ts          # List mode
+    │   └── relations.ts     # Relations mode
     ├── formatter/           # Output formatters
     │   ├── formatter.ts     # JSON/Markdown/CSV formatters
-    │   └── list_formatter.ts # List mode formatters
+    │   ├── list_formatter.ts # List mode formatters
+    │   └── relations_formatter.ts # Relations mode formatters
     ├── testing/             # Typed scenario test support (not published)
     │   └── scenario.ts      # given / when / then with event order
     ├── cli.ts               # CLI entry point (cluster mode)

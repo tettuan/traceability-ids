@@ -92,7 +92,7 @@ EXAMPLES:
 export const command: CommandSpec<ClusterModeOptions> = {
   usage: USAGE,
   parse: parseClusterArgs,
-  run: (options) => runClusterMode(options),
+  run: (options, io) => runClusterMode(options, io),
 };
 
 if (import.meta.main) {

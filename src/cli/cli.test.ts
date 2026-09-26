@@ -1,12 +1,14 @@
 import { assertEquals, assertStringIncludes, assertThrows } from "@std/assert";
 import { DEFAULT_VERSION_MATCH, VERSION_MATCH_MODES } from "../core/options.ts";
 import { TraceabilityError } from "../core/errors.ts";
+import { DEFAULT_HASH_RULE } from "../core/id.ts";
 import {
   parseAnalyzeArgs,
   parseClusterArgs,
   parseExtractArgs,
   parseGraphArgs,
   parseListArgs,
+  parseRelationsArgs,
   parseSearchArgs,
 } from "./args.ts";
 import { COMPLETE, type ModeOutcome } from "../core/outcome.ts";
@@ -31,6 +33,8 @@ Deno.test("args - extract builds typed options", () => {
         inputDir: ["d", "s"],
         extensions: ["md", "rs"],
         frontmatter: "include",
+        hashRule: DEFAULT_HASH_RULE,
+        hashes: "any",
         outputFile: undefined,
         ids: { kind: "inline", text: "a:b:c-1 a:b:c-2" },
         before: 3,
@@ -43,24 +47,85 @@ Deno.test("args - extract builds typed options", () => {
   );
   const fromFile = parseExtractArgs(["--ids-file", "ids.txt", "d"]);
   assertEquals(fromFile.kind === "run" && fromFile.options.ids, { kind: "file", path: "ids.txt" });
+  const hash = parseListArgs(["--hash-pattern", "[0-9a-f]{4}", "--require-hash", "d"]);
+  assertEquals(
+    hash.kind === "run" && [hash.options.hashRule?.test("beef"), hash.options.hashes],
+    [true, "required"],
+  );
   const skip = parseListArgs(["--skip-frontmatter", "d"]);
   assertEquals(skip.kind === "run" && skip.options.frontmatter, "skip");
   const allow = parseExtractArgs(["--ids", "x", "--allow-missing", "d"]);
   assertEquals(allow.kind === "run" && allow.options.allowMissing, true);
-  for (const parse of [parseExtractArgs, parseGraphArgs]) {
+  for (
+    const parse of [(argv: string[]) => parseExtractArgs(["--ids", "x", ...argv]), parseGraphArgs]
+  ) {
     for (const mode of VERSION_MATCH_MODES) {
-      const parsed = parse(["--ids", "x", "--versions", mode, "--allow-missing", "d"]);
+      const parsed = parse(["--versions", mode, "--allow-missing", "d"]);
       assertEquals(
         parsed.kind === "run" && [parsed.options.versions, parsed.options.allowMissing],
         [mode, true],
       );
     }
-    const defaults = parse(["--ids", "x", "d"]);
+    const defaults = parse(["d"]);
     assertEquals(
       defaults.kind === "run" && [defaults.options.versions, defaults.options.allowMissing],
       [DEFAULT_VERSION_MATCH, false],
     );
   }
+});
+
+Deno.test("args - relations builds typed options", () => {
+  const parsed = parseRelationsArgs([
+    "--ids",
+    "req:a:x-a1b2c3",
+    "--direction",
+    "in",
+    "--kind",
+    "trace_to",
+    "--kind",
+    "derived_from,trace_to",
+    "--broken",
+    "--format",
+    "tsv",
+    "d",
+  ]);
+  assertEquals(
+    parsed.kind === "run" &&
+      [
+        parsed.options.direction,
+        parsed.options.kinds,
+        parsed.options.status,
+        parsed.options.format,
+      ],
+    ["in", ["trace_to", "derived_from"], "broken", "tsv"],
+  );
+  const defaults = parseRelationsArgs(["d"]);
+  assertEquals(
+    defaults.kind === "run" &&
+      [
+        defaults.options.ids,
+        defaults.options.direction,
+        defaults.options.kinds,
+        defaults.options.status,
+      ],
+    [undefined, undefined, ["derived_from", "trace_to"], "resolved"],
+  );
+  assertEquals(detailOf(() => parseRelationsArgs(["--direction", "in", "d"])), {
+    kind: "MissingArgument",
+    argument: "--ids or --ids-file (required by --direction)",
+  });
+  const list = parseListArgs([
+    "--ids-file",
+    "ids.txt",
+    "--versions",
+    "all",
+    "--allow-missing",
+    "d",
+  ]);
+  assertEquals(
+    list.kind === "run" && [list.options.ids, list.options.versions, list.options.allowMissing],
+    [{ kind: "file", path: "ids.txt" }, "all", true],
+  );
 });
 
 Deno.test("args - missing arguments are MissingArgument", () => {
@@ -78,6 +143,31 @@ Deno.test("args - missing arguments are MissingArgument", () => {
   });
 });
 
+Deno.test("args - an option the command does not accept is UnknownOption (exit 2)", () => {
+  const parsers = [
+    parseRelationsArgs,
+    parseClusterArgs,
+    parseSearchArgs,
+    parseExtractArgs,
+    parseGraphArgs,
+    parseAnalyzeArgs,
+    parseListArgs,
+  ];
+  for (const parse of parsers) {
+    for (
+      const [argv, option] of [
+        [["--unknown-flag", "d"], "--unknown-flag"],
+        [["d", "--x=1"], "--x"],
+        [["-x", "d"], "-x"],
+      ] as const
+    ) {
+      assertEquals(detailOf(() => parse([...argv])), { kind: "UnknownOption", option });
+    }
+    assertEquals(parse(["-h"]), { kind: "help" });
+  }
+  assertEquals(new TraceabilityError({ kind: "UnknownOption", option: "--x" }).exitCode, 2);
+});
+
 Deno.test("args - invalid values name the option", () => {
   const cases: [() => unknown, string][] = [
     [() => parseClusterArgs(["d", "--algorithm", "x"]), "--algorithm"],
@@ -85,12 +175,18 @@ Deno.test("args - invalid values name the option", () => {
     [() => parseClusterArgs(["d", "--k", "two"]), "--k"],
     [() => parseSearchArgs(["d", "--query", "q", "--top", "0"]), "--top"],
     [() => parseExtractArgs(["d", "--ids", "x", "--versions", "newest"]), "--versions"],
-    [() => parseExtractArgs(["d", "--ids", "x", "--before", "-1"]), "--before"],
+    [() => parseExtractArgs(["d", "--ids", "x", "--before=-1"]), "--before"],
     [() => parseGraphArgs(["d", "--layout", "grid"]), "--layout"],
     [() => parseGraphArgs(["d", "--versions", "newest"]), "--versions"],
     [() => parseAnalyzeArgs(["d", "--edge-threshold", "x"]), "--edge-threshold"],
     [() => parseListArgs(["d", "--sort", "name"]), "--sort"],
     [() => parseListArgs(["d", "--ext", ","]), "--ext"],
+    [() => parseListArgs(["d", "--format", "tree"]), "--format"],
+    [() => parseRelationsArgs(["d", "--ids", "x", "--direction", "up"]), "--direction"],
+    [() => parseRelationsArgs(["d", "--kind", "parent"]), "--kind"],
+    [() => parseRelationsArgs(["d", "--format", "csv"]), "--format"],
+    [() => parseListArgs(["d", "--hash-pattern", "("]), "--hash-pattern"],
+    [() => parseListArgs(["d", "--hash-pattern="]), "--hash-pattern"],
   ];
   for (const [fn, option] of cases) {
     const detail = detailOf(fn) as { kind: string; option: string };

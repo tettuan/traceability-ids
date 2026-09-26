@@ -59,7 +59,7 @@ EXAMPLES:
 export const command: CommandSpec<AnalyzeModeOptions> = {
   usage: USAGE,
   parse: parseAnalyzeArgs,
-  run: (options) => runAnalyzeMode(options),
+  run: (options, io) => runAnalyzeMode(options, io),
 };
 
 if (import.meta.main) {

@@ -17,7 +17,7 @@ import { createDistanceMatrix } from "../distance/calculator.ts";
 import { buildGraphData, isRelationLink } from "../visualization/graph_data.ts";
 import { generateHTML } from "../visualization/html_template.ts";
 import { classicalMDS } from "../visualization/mds.ts";
-import { collectIds, emitResult, type InputSpec } from "./pipeline.ts";
+import { collectIds, emitResult, hashRuleOf, type InputSpec } from "./pipeline.ts";
 
 /** Options of graph mode */
 export interface GraphModeOptions extends InputSpec {
@@ -53,7 +53,7 @@ export async function runGraphMode(
   io: ModeIO = consoleIO,
 ): Promise<ModeOutcome> {
   io.report({ type: "ModeStarted", mode: "graph" });
-  const calculator = createDistanceCalculator(options.distance);
+  const calculator = createDistanceCalculator(options.distance, hashRuleOf(options));
   io.report({ type: "CalculatorSelected", name: options.distance });
   const algorithm = createClusteringAlgorithm(options.algorithm, options.clusteringOptions);
   io.report({ type: "AlgorithmSelected", name: options.algorithm });

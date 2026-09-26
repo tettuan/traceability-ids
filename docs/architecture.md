@@ -36,13 +36,17 @@ src/
 │   ├── context.ts            # コンテキスト抽出
 │   ├── resolver.ts           # 要求IDの解決（バージョン省略IDの latest / all）
 │   └── loader.ts             # ID一覧の読み込み（IdsSource）
-├── relations/                # 関係の抽出（YAML 領域・起点・値）と解決（版・存在・リンク切れ）
+├── relations/
+│   ├── extract.ts            # 関係の抽出（YAML 領域・起点・値）
+│   ├── resolve.ts            # 解決（版・存在）と broken の理由（NodeMissing / VersionMissing）
+│   └── select.ts             # 要求 ID と向き（in / out）による宣言の選択
 ├── list/
 │   └── aggregator.ts         # List mode の集約・バッチ分割
 ├── visualization/            # Graph mode（MDS, グラフデータ, HTML）
 ├── formatter/
 │   ├── formatter.ts          # 出力フォーマッター
 │   ├── list_formatter.ts     # List mode 用フォーマッター
+│   ├── relations_formatter.ts # Relations mode 用フォーマッター
 │   └── simple.ts             # シンプル形式
 ├── modes/
 │   ├── pipeline.ts           # 共通ステップ（collectIds / emitResult）
@@ -52,6 +56,7 @@ src/
 │   ├── graph.ts
 │   ├── analyze.ts
 │   ├── list.ts
+│   ├── relations.ts
 │   └── modes.scenario.test.ts # given/when/then シナリオテスト
 ├── cli/
 │   ├── args.ts               # 純粋な引数パーサー（argv → ParsedArgs）
@@ -64,8 +69,61 @@ src/
 └── mod.ts                    # ライブラリエントリポイント（`./mod` として export）
 ```
 
-ルート直下の `search.ts` / `extract.ts` / `graph.ts` / `analyze.ts` / `list.ts`
-が各モードのエントリポイント（JSR サブパス）である。
+ルート直下の `search.ts` / `extract.ts` / `graph.ts` / `analyze.ts` / `list.ts` /
+`relations.ts` が各モードのエントリポイント（JSR サブパス）である。
+issue の受け入れ基準は `src/cli/issues.test.ts` が、issue に書かれた CLI コマンドを
+`runCommand` で実行して検証する。
+
+## 開発方針（型化・全域性・SSoT）
+
+実装・レビューは次の3原則に従う。新しい機能もこの形で書く。
+
+### 1. 型化（状態・失敗を型で表す）
+
+- 取りうる状態は判別共用体で表し、`kind` / `status` で分岐する
+  （`ErrorDetail`, `RelationIssue`, `ModeOutcome`, `ModeEvent`）
+- 不正な状態は型で表現できないようにする。例: `partial` の `missing` と
+  `SourceMissing` の `targets` は `NonEmptyArray<T>` であり、空は作れない
+- 未検証の文字列を内部に通さない。CLI 値は `options.ts` のパーサーで語彙型
+  （`DistanceName`, `VersionMatchMode` など）に変換し、不正値は
+  `InvalidOptionValue` にする
+- 失敗は `TraceabilityError`（`ErrorDetail`）で投げる。素の `Error` や文字列は使わない
+- 進捗は文字列ではなく `ModeEvent` として `io.report()` に渡す
+
+### 2. 全域性（すべての入力に定義された結果を返す）
+
+- 関数はすべての入力に対して結果を返す。例外になるのは型付きエラーとして宣言した
+  ものだけ（`@throws` に kind を書く）
+- 共用体の `switch` は `default: return assertNever(x)` で閉じ、kind の追加漏れを
+  コンパイル時に検出する
+- 境界値は明示的に扱う。NaN・無限大・範囲外は `requireParameter()` で
+  `InvalidParameter` にする。行番号の範囲外などは空の結果を返す
+  （`buildLocationContext`）
+- 解釈できない入力は捨てずに警告にする（`RelationIssue`: `SourceMissing`,
+  `InvalidTarget`）。推測で補完しない（例: 起点 ID を兄弟項目やファイルから借りない）
+- 空の入力の扱いは `EmptyPolicy`（`stop` / `continue`）のように値で選ぶ
+
+### 3. SSoT（Single Source of Truth）
+
+- 語彙は `const` タプルで1回だけ宣言し、型・ヘルプ・検証・網羅性をそこから導出する
+  （`DISTANCE_NAMES` → `DistanceName`、`RELATION_KINDS` → `RelationKind`）
+- 対応表は mapped type で全キーを必須にする
+  （`OUTCOME_EXIT_CODES: { [S in ModeOutcome["status"]]: number }`,
+  `RELATION_LABELS`）。キーを足すと未定義箇所がコンパイルエラーになる
+- ID 文法は `core/id.ts` だけで定義する。正規表現や分解処理を他所に書かない
+- 終了コードは `EXIT_CODES` / `OUTCOME_EXIT_CODES`、メッセージは
+  `describeError()` / `describeEvent()` を唯一の出所とし、ヘルプ
+  （`exitCodesHelp()`）もそこから生成する
+- ファイル I/O は `core/io.ts`、共通ステップは `modes/pipeline.ts` に集約する
+- ドキュメントはコードの定義を指し、値の一覧を重複して持つ場合はコードと同時に更新する
+
+### レビュー観点
+
+| 観点   | 確認すること                                                                 |
+| ------ | ---------------------------------------------------------------------------- |
+| 型化   | `string` / `boolean` のまま状態を運んでいないか。空や不正値が作れないか      |
+| 全域性 | `assertNever` で閉じているか。境界値・空入力・不正入力の結果が決まっているか |
+| SSoT   | 同じ語彙・対応表・正規表現が2か所以上にないか                                |
 
 ## CLI 引数定義
 
@@ -199,15 +257,30 @@ deno run --allow-read --allow-write search.ts ./data --output ./output/similar.j
 
 ### core/id.ts（ID文法）
 
-ID文法 `{level}:{scope}:{semantic}-{hash}[#{version}]` の唯一の定義。
+ID文法 `{level}:{scope}:{semantic}[-{hash}][#{version}]` の唯一の定義。
 バージョン省略IDも抽出対象であり、その場合 `version` は空文字列になる。
+
+ID として見つかるのは `{level}:{scope}:{a}-{b}` の形である（抽出の範囲）。末尾要素 `{b}` が
+hash の形式（`HashRule`）に合うときだけ hash とし、合わなければ hash 無し
+（`hash = ""`、semantic = `{a}-{b}`）に分解する（分解の規則）。
+
+- 既定の形式 `DEFAULT_HASH_PATTERN` = 英小文字と数字の6文字で、数字を1つ以上含む。
+  hash 無し ID の末尾に `-layout` `-system` のような英単語が来るため、数字を必須にする
+- `compileHashRule(pattern)` は `^(?:pattern)$` に包んだ `HashRule`（branded type）を返す。
+  不正な正規表現は `null`（CLI では `parseHashPattern` が `InvalidOptionValue` にする）
+- 分解の規則は1つ: `InputSpec.hashRule` を抽出（`extractIds`）と構造的距離
+  （`createDistanceCalculator` → `StructuralDistance`）の両方に渡す。関係の抽出は
+  `fullId` だけを使うため規則に依らない
+- `hasHash(id)`（hash が空でない）。JSON では `hash: ""` で hash 無しを表し、
+  `version: ""` と同じく導出できる値（`hasHash`）を二重に持たない
+- semantic に `-` を含まない hash 無しの記述（`req:auth:login`）は ID ではない
 
 - 検索パターン（`idSearchPattern()`）は、バージョンなしIDを「hash の直後が
   `[A-Za-z0-9_#-]` でない」場合のみ認める。末尾に `#` だけが付いたものや、
   より長い語の一部は ID とみなさない
-- `parseId(text)` - 文字列全体を ID として解析（ID でなければ `null`）
-- `findIds(line)` - 1行中の ID を出現順に列挙（`extractor.ts` が使用）
-- `hasVersion` / `uniqueKeyOf`（バージョンを除いたキー）/ `withVersion`
+- `parseId(text, rule?)` - 文字列全体を ID として解析（ID でなければ `null`）
+- `findIds(line, rule?)` - 1行中の ID を出現順に列挙（`extractor.ts` が使用）
+- `hasVersion` / `versionOf` / `uniqueKeyOf`（バージョンを除いたキー）/ `withVersion`
 - `compareVersionsDesc` - 数字列を数値として比較し新しい順に並べる
   （例: `20260810` > `20251111b` > `20251111a`、`v10` > `v2`）
 
@@ -217,6 +290,7 @@ export interface IdComponents {
   level: string;
   scope: string;
   semantic: string;
+  /** hash（形式に合う末尾要素）。hash 無しの場合は空文字列 */
   hash: string;
   /** バージョン（`#` 以降）。バージョンなしで書かれた場合は空文字列 */
   version: string;
@@ -456,7 +530,7 @@ if (import.meta.main) {
 ### cli/args.ts
 
 - `parseClusterArgs` / `parseSearchArgs` / `parseExtractArgs` / `parseGraphArgs` /
-  `parseAnalyzeArgs` / `parseListArgs` は `argv` を受け取り
+  `parseAnalyzeArgs` / `parseListArgs` / `parseRelationsArgs` は `argv` を受け取り
   `ParsedArgs<T> = { kind: "help" } | { kind: "run"; options: T }` を返す純粋関数
 - 位置引数はすべて `inputDir`（複数パス）、`--ext` は `parseExtensions` で配列化
 - 値の検証は `parseChoice` / `parseInteger` / `parseNumber`（`core/options.ts`）で行い、
@@ -465,7 +539,8 @@ if (import.meta.main) {
 
 ### cli/runner.ts
 
-`runCommand(spec, argv)` は終了コードを返す。
+`runCommand(spec, argv, cli?, io?)` は終了コードを返す。`io`（`ModeIO`）はモードに渡され、
+テストでは記録用 IO で進捗と結果を受け取る。
 
 - help → USAGE と `EXIT CODES` セクションを STDOUT に出力し 0
 - 実行 → モードが返す `ModeOutcome` の終了コード（complete 0 / partial 1）
@@ -473,7 +548,11 @@ if (import.meta.main) {
   （usage エラーは `Run with --help for usage.` も出力）
 - それ以外 → `Error: <message>`、終了コード 70（sysexits EX_SOFTWARE）
 
-extract コマンドは `--allow-missing` のとき partial を complete として扱う。
+extract / graph / list / relations コマンドは `--allow-missing` のとき partial を complete として扱う。
+
+未知のオプションは `flags()` の `unknown` コールバックで `UnknownOption`（exit 2）にする。
+受け付けるオプションは各パーサーが `flags()` に渡す名前の一覧（と共通の入力オプション）が
+唯一の定義である。`-h` は `--help` の別名。
 
 `main(spec)` は `Deno.exit(await runCommand(spec, Deno.args))` を行う。
 
@@ -983,12 +1062,15 @@ export function formatContextAsSimple(
 ## モード実装（パイプラインとイベント）
 
 各モードは `runXxxMode(options, io: ModeIO = consoleIO)` として `src/modes/` に置かれる。
-オプションは `InputSpec`（`inputDir: string | string[]`, `extensions?: string[]`）を拡張する。
+オプションは `InputSpec`（`inputDir`, `extensions?`, `frontmatter?`, `hashRule?`,
+`hashes?: HashPolicy`）を拡張する。
 
 共通ステップは `src/modes/pipeline.ts` にある。
 
 - `collectIds(input, io, emptyPolicy)` - スキャンとID抽出。
-  `ScanStarted` → `FilesScanned` → `IdsExtracted` を通知する
+  `ScanStarted` → `FilesScanned` → `HashlessExcluded`? → `IdsExtracted` を通知する
+  - `hashes = "required"`（`--require-hash`）: hash 無し ID を除き、除いた出現数を
+    `HashlessExcluded` で報告する（黙って捨てない）
   - `EmptyPolicy = "stop"`（既定）: ファイル0件で `Stopped(NoFiles)`、ID 0件で
     `Stopped(NoIds)` を通知して `null` を返す（出力なし）
   - `EmptyPolicy = "continue"`: 止まらず空の結果を返す（list mode が使用し、空の
@@ -1008,14 +1090,15 @@ export interface ModeIO {
 }
 ```
 
-| モード  | イベント列                                                                                                                                  |
-| ------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| cluster | ModeStarted → CalculatorSelected → AlgorithmSelected → (collectIds) → DistanceMatrixBuilt → ClustersFormed → Output*                        |
-| search  | ModeStarted → CalculatorSelected → (collectIds) → SearchCompleted → Output*                                                                 |
-| extract | ModeStarted → TargetsLoaded → (collectIds) → ContextsResolved → Output*                                                                     |
-| graph   | ModeStarted → CalculatorSelected → AlgorithmSelected → (collectIds) → DistanceMatrixBuilt → ClustersFormed → GraphBuilt → Output*           |
-| analyze | ModeStarted → CalculatorSelected → AlgorithmSelected → (collectIds) → DistanceMatrixBuilt → ClustersFormed → AnalysisCompleted ×4 → Output* |
-| list    | ModeStarted → (collectIds, continue) → Output*（バッチごとに1回）                                                                           |
+| モード    | イベント列                                                                                                                                  |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| cluster   | ModeStarted → CalculatorSelected → AlgorithmSelected → (collectIds) → DistanceMatrixBuilt → ClustersFormed → Output*                        |
+| search    | ModeStarted → CalculatorSelected → (collectIds) → SearchCompleted → Output*                                                                 |
+| extract   | ModeStarted → TargetsLoaded → (collectIds) → ContextsResolved → Output*                                                                     |
+| graph     | ModeStarted → CalculatorSelected → AlgorithmSelected → (collectIds) → DistanceMatrixBuilt → ClustersFormed → GraphBuilt → Output*           |
+| analyze   | ModeStarted → CalculatorSelected → AlgorithmSelected → (collectIds) → DistanceMatrixBuilt → ClustersFormed → AnalysisCompleted ×4 → Output* |
+| list      | ModeStarted → TargetsLoaded? → (collectIds, continue) → IdsSelected? → Output*（バッチごとに1回）                                           |
+| relations | ModeStarted → TargetsLoaded? → (collectIds) → RelationIssueFound* → RelationsResolved → RelationsSelected → Output*                         |
 
 ## エラー処理
 
@@ -1025,15 +1108,15 @@ export interface ModeIO {
 
 終了コードは `grep` / `diff` の慣例に従い、0 と 1 を「結果」、2 以上を「失敗」とする。
 
-| 区分       | 終了コード | 内容                                                               |
-| ---------- | ---------- | ------------------------------------------------------------------ |
-| complete   | 0          | 成功（指定したものがすべて見つかった）                             |
-| partial    | 1          | extract で一部の ID が見つからない（見つかった分は出力する）       |
-| usage      | 2          | MissingArgument, EmptyIdList, InvalidOptionValue, InvalidParameter |
-| input      | 3          | PathNotFound, PathAccessDenied, ScanFailed, FileReadFailed         |
-| output     | 4          | FileWriteFailed                                                    |
-| external   | 5          | ExternalCommandFailed                                              |
-| unexpected | 70         | `TraceabilityError` 以外                                           |
+| 区分       | 終了コード | 内容                                                                                                    |
+| ---------- | ---------- | ------------------------------------------------------------------------------------------------------- |
+| complete   | 0          | 成功（指定したものがすべて見つかった）                                                                  |
+| partial    | 1          | extract / list / relations で要求 ID の一部が見つからない、graph でリンク切れ（見つかった分は出力する） |
+| usage      | 2          | MissingArgument, EmptyIdList, UnknownOption, InvalidOptionValue, InvalidParameter                       |
+| input      | 3          | PathNotFound, PathAccessDenied, ScanFailed, FileReadFailed                                              |
+| output     | 4          | FileWriteFailed                                                                                         |
+| external   | 5          | ExternalCommandFailed                                                                                   |
+| unexpected | 70         | `TraceabilityError` 以外                                                                                |
 
 - モードは `ModeOutcome`（`src/core/outcome.ts`）を返す。`partial` の `missing` は
   `NonEmptyArray<string>` 型で、空の partial は表現できない
@@ -1058,14 +1141,15 @@ export interface ModeIO {
 
 ### モードの独立性と役割
 
-| モード      | 役割                   | 入力         | 処理                             | 出力                      |
-| ----------- | ---------------------- | ------------ | -------------------------------- | ------------------------- |
-| **cluster** | IDをグループ化         | 入力パス     | 距離行列作成 + クラスタリング    | クラスタ化されたID一覧    |
-| **search**  | 類似IDを探す           | クエリ文字列 | 距離計算（クエリ vs 全ID）       | 類似度順のID一覧          |
-| **extract** | IDの使用箇所を探す     | ID一覧       | ファイル検索（grep的）           | 該当箇所 + 前後のテキスト |
-| **graph**   | IDの関係を可視化       | 入力パス     | 距離行列 + クラスタ + レイアウト | 3D グラフ HTML            |
-| **analyze** | ドキュメント品質を分析 | 入力パス     | 構造・詳細度・重複・欠落の分析   | Markdown レポート         |
-| **list**    | ID索引を作る           | 入力パス     | fullId ごとに出現箇所を集約      | JSON / simple / CSV 索引  |
+| モード        | 役割                   | 入力                | 処理                             | 出力                                    |
+| ------------- | ---------------------- | ------------------- | -------------------------------- | --------------------------------------- |
+| **cluster**   | IDをグループ化         | 入力パス            | 距離行列作成 + クラスタリング    | クラスタ化されたID一覧                  |
+| **search**    | 類似IDを探す           | クエリ文字列        | 距離計算（クエリ vs 全ID）       | 類似度順のID一覧                        |
+| **extract**   | IDの使用箇所を探す     | ID一覧              | ファイル検索（grep的）           | 該当箇所 + 前後のテキスト               |
+| **graph**     | IDの関係を可視化       | 入力パス            | 距離行列 + クラスタ + レイアウト | 3D グラフ HTML                          |
+| **analyze**   | ドキュメント品質を分析 | 入力パス            | 構造・詳細度・重複・欠落の分析   | Markdown レポート                       |
+| **list**      | ID索引を作る           | 入力パス（+ID一覧） | fullId ごとに出現箇所を集約      | JSON / simple / CSV / locations / count |
+| **relations** | 関係をデータで出す     | 入力パス（+ID一覧） | 宣言ごとに解決・向きで選択       | simple / TSV / JSON                     |
 
 各モードは互いに影響を与えず、独立して拡張・保守可能。共通処理は
 `modes/pipeline.ts` に集約されている。

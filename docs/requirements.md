@@ -25,7 +25,12 @@
 
 対象ファイルからトレーサビリティIDをパターンマッチで全件抽出する。
 
-- パターン書式: `{level}:{scope}:{semantic}-{hash}[#{version}]`
+- パターン書式: `{level}:{scope}:{semantic}[-{hash}][#{version}]`
+  - 見つける範囲は `{level}:{scope}:{a}-{b}`。末尾要素 `{b}` が hash の形式に合うときだけ hash とし、
+    合わなければ hash 無し（hash は空文字列、`{a}-{b}` が semantic）とする
+    （例: `req:auth:login-flow` → semantic `login-flow`）
+  - hash の形式の既定: 英小文字と数字の6文字で、数字を1つ以上含む。`--hash-pattern` で変更、
+    `--require-hash` で hash 無し ID を除外（除外数は進捗に出す）
   - `#{version}` は省略可能。バージョンなしIDも抽出する（`version` は空文字列）
   - バージョンなしIDは、hash の直後が `[A-Za-z0-9_#-]` でない場合のみ ID とみなす
     （末尾に `#` だけが付いたもの、より長い語の一部は ID ではない）
@@ -33,8 +38,8 @@
 - 各要素:
   - `{level}`: コロンの前の文字列
   - `{scope}`: 最初のコロンと2番目のコロンの間の文字列
-  - `{semantic}`: 2番目のコロン後からハイフンまでの文字列
-  - `{hash}`: ハイフン後からハッシュ記号までの文字列
+  - `{semantic}`: 2番目のコロン後から最後のハイフンまでの文字列（hash 無しなら末尾まで）
+  - `{hash}`: 最後のハイフン後からハッシュ記号までの文字列（hash の形式に合う場合のみ）
   - `{version}`: ハッシュ記号後の文字列（省略時は空文字列）
 - バージョン比較: 数字列を数値として比較する（例: `20260810` > `20251111b` >
   `20251111a`、`v10` > `v2`）
@@ -90,15 +95,14 @@
 
 #### 出力例
 
-```
-# Query: security
-# Distance calculator: structural
-# Top 10 results
+simple 形式は ID だけを1行1件で STDOUT に出す（見出しなし。パイプで ID をそのまま渡せる）。
+クエリと件数は進捗として STDERR に出る。`--show-distance` では `{id}\t{distance}`。
 
-req:apikey:security-4f7b2e#20251111a (distance: 0.000)
-req:apikey:encryption-6d3a9c#20251111a (distance: 0.245)
-req:apikey:deletion-4e7c2d#20251111a (distance: 0.312)
-req:apikey:compliance-5a8d4b#20251111a (distance: 0.398)
+```
+req:apikey:security-4f7b2e#20251111a	0.000
+req:apikey:encryption-6d3a9c#20251111a	0.245
+req:apikey:deletion-4e7c2d#20251111a	0.312
+req:apikey:compliance-5a8d4b#20251111a	0.398
 ...
 ```
 
@@ -446,15 +450,15 @@ deno run --allow-read --allow-write src/cli.ts [options] <input-path...>
 0 と 1 を結果、2 以上を失敗とする。失敗の終了コードはエラーのカテゴリで決まる。
 `--help` の末尾に `EXIT CODES` セクションを表示する。
 
-| 終了コード | カテゴリ | エラー種類                                                         |
-| ---------- | -------- | ------------------------------------------------------------------ |
-| 0          | 成功     | 指定したものがすべて見つかった                                     |
-| 1          | 一部不在 | extract で一部の ID が見つからない（`--allow-missing` で 0）       |
-| 2          | usage    | MissingArgument, EmptyIdList, InvalidOptionValue, InvalidParameter |
-| 3          | input    | PathNotFound, PathAccessDenied, ScanFailed, FileReadFailed         |
-| 4          | output   | FileWriteFailed                                                    |
-| 5          | external | ExternalCommandFailed                                              |
-| 70         | 想定外   | `TraceabilityError` 以外のエラー（sysexits EX_SOFTWARE）           |
+| 終了コード | カテゴリ | エラー種類                                                                                              |
+| ---------- | -------- | ------------------------------------------------------------------------------------------------------- |
+| 0          | 成功     | 指定したものがすべて見つかった                                                                          |
+| 1          | 一部不在 | extract / list / relations で要求 ID の一部が見つからない、graph でリンク切れ（`--allow-missing` で 0） |
+| 2          | usage    | MissingArgument, EmptyIdList, UnknownOption, InvalidOptionValue, InvalidParameter                       |
+| 3          | input    | PathNotFound, PathAccessDenied, ScanFailed, FileReadFailed                                              |
+| 4          | output   | FileWriteFailed                                                                                         |
+| 5          | external | ExternalCommandFailed                                                                                   |
+| 70         | 想定外   | `TraceabilityError` 以外のエラー（sysexits EX_SOFTWARE）                                                |
 
 ## 技術的制約
 

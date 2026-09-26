@@ -10,6 +10,7 @@ import {
   VERSION_MATCH_MODES,
 } from "../core/options.ts";
 import { DEFAULT_EXTENSIONS } from "../core/scanner.ts";
+import { DEFAULT_HASH_PATTERN } from "../core/id.ts";
 
 const COLUMN = 26;
 
@@ -29,6 +30,12 @@ export const INPUT_OPTIONS_HELP: string = [
   ),
   bullet("e.g. md,rs,ts,tsx,mjs,sh"),
   row("--skip-frontmatter", "Read the body only, ignoring the frontmatter (leading --- block)"),
+  row(
+    "--hash-pattern <regex>",
+    `Hash form of the last segment, matched whole (default: ${DEFAULT_HASH_PATTERN})`,
+  ),
+  bullet("a last segment not in this form is part of the semantic (no hash)"),
+  row("--require-hash", "Exclude IDs without a hash"),
   row("--help", "Show this help message"),
 ].join("\n");
 

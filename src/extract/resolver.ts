@@ -52,3 +52,29 @@ export function resolveTargetId(
     matches: byVersion.get(version) ?? [],
   }));
 }
+
+/** Full IDs selected by requested IDs, and the requested IDs that matched nothing */
+export interface IdSelection {
+  /** Full IDs of every matched group */
+  fullIds: Set<string>;
+  /** Requested IDs without any match, in request order */
+  missing: string[];
+}
+
+/**
+ * Resolve every requested ID with {@link resolveTargetId} (pure)
+ */
+export function selectIds(
+  targetIds: readonly string[],
+  ids: readonly TraceabilityId[],
+  mode: VersionMatchMode,
+): IdSelection {
+  const fullIds = new Set<string>();
+  const missing: string[] = [];
+  for (const targetId of targetIds) {
+    const groups = resolveTargetId(targetId, ids, mode);
+    if (groups.length === 0) missing.push(targetId);
+    for (const group of groups) fullIds.add(group.fullId);
+  }
+  return { fullIds, missing };
+}

@@ -1,6 +1,6 @@
 {
   "name": "@aidevtool/traceability-ids",
-  "version": "0.0.11",
+  "version": "0.0.12",
   "exports": {
     ".": "./src/cli.ts",
     "./search": "./search.ts",
@@ -8,6 +8,7 @@
     "./graph": "./graph.ts",
     "./analyze": "./analyze.ts",
     "./list": "./list.ts",
+    "./relations": "./relations.ts",
     "./mod": "./src/mod.ts"
   },
   "tasks": {

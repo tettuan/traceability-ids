@@ -70,7 +70,8 @@ EXAMPLES:
 export const command: CommandSpec<GraphCommandOptions> = {
   usage: USAGE,
   parse: parseGraphArgs,
-  run: async (options) => applyAllowMissing(await runGraphMode(options), options.allowMissing),
+  run: async (options, io) =>
+    applyAllowMissing(await runGraphMode(options, io), options.allowMissing),
 };
 
 if (import.meta.main) {
